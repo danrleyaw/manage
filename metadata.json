@@ -1,0 +1,8 @@
+{
+  "name": "Fut Manager",
+  "description": "Gerenciador inteligente de partidas de futebol com algoritmo NEXT4 + RE para equilíbrio e automação de filas.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
