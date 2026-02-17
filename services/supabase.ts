@@ -5,8 +5,8 @@ import { Game, Player, QueueState } from '../types';
 // Configuração do cliente Supabase (real, sem mocks)
 // -----------------------------------------------------------------------------
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SUPABASE_URL = "https://venybvftwkitaugutkvl.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlbnlidmZ0d2tpdGF1Z3V0a3ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MDE3NjksImV4cCI6MjA4NjM3Nzc2OX0.gKKyvpMm9AsQadUdb7dXQtHrps9ryxOGS3iw5gOiEK0";
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   // Em desenvolvimento isso ajuda a detectar falta de configuração.
