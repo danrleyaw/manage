@@ -1,24 +1,25 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Game, Player, QueueState } from '../types';
+import { Database } from '../types/database.types';
 
 // -----------------------------------------------------------------------------
 // Configuração do cliente Supabase (real, sem mocks)
 // -----------------------------------------------------------------------------
 
-const SUPABASE_URL = "https://venybvftwkitaugutkvl.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlbnlidmZ0d2tpdGF1Z3V0a3ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MDE3NjksImV4cCI6MjA4NjM3Nzc2OX0.gKKyvpMm9AsQadUdb7dXQtHrps9ryxOGS3iw5gOiEK0";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   // Em desenvolvimento isso ajuda a detectar falta de configuração.
   // Em produção (Vercel) esses valores vêm das variáveis já configuradas.
   // eslint-disable-next-line no-console
   console.warn(
-    '[supabase] Variáveis NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY não definidas. ' +
+    '[supabase] Variáveis VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY não definidas. ' +
     'Configure no .env.local (dev) e na Vercel (production).'
   );
 }
 
-const client: SupabaseClient = createClient(
+const client = createClient<Database>(
   SUPABASE_URL || '',
   SUPABASE_ANON_KEY || '',
   {
@@ -33,38 +34,18 @@ const client: SupabaseClient = createClient(
 // Mapeamento entre modelo TypeScript e esquema SQL (snake_case)
 // -----------------------------------------------------------------------------
 
-type GameRow = {
-  id: string;
-  name: string;
-  join_code: string;
-  status: string;
-  admin_id: string;
-  settings: Game['settings'] | null;
-  timer_state: Game['timerState'] | null;
-  score_a: number | null;
-  score_b: number | null;
-};
-
-type PlayerRow = {
-  id: string;
-  name: string;
-  is_confirmed: boolean;
-  is_goalkeeper: boolean;
-  game_id: string;
-};
-
-type QueueRow = {
-  game_id: string;
-  team_a: string[] | null;
-  team_b: string[] | null;
-  next_block: string[] | null;
-  re_queue: string[] | null;
-};
+type Tables = Database['public']['Tables'];
+type GameRow = Tables['games']['Row'];
+type GameInsert = Tables['games']['Insert'];
+type PlayerRow = Tables['players']['Row'];
+type PlayerInsert = Tables['players']['Insert'];
+type QueueRow = Tables['queue_state']['Row'];
+type QueueInsert = Tables['queue_state']['Insert'];
 
 const mapGameRowToGame = (row: GameRow): Game => {
-  const settings = row.settings || { matchTime: 10 };
+  const settings = (row.settings as any as Game['settings']) || { matchTime: 10 };
   const timerState =
-    row.timer_state ||
+    (row.timer_state as any as Game['timerState']) ||
     {
       isRunning: false,
       startTime: null,
@@ -84,18 +65,18 @@ const mapGameRowToGame = (row: GameRow): Game => {
   };
 };
 
-const mapGameToRow = (game: Partial<Game>): Partial<GameRow> => {
-  const out: Partial<GameRow> = {};
-  if (game.id !== undefined) out.id = game.id;
-  if (game.name !== undefined) out.name = game.name;
-  if (game.joinCode !== undefined) out.join_code = game.joinCode;
-  if (game.status !== undefined) out.status = game.status;
-  if (game.adminId !== undefined) out.admin_id = game.adminId;
-  if (game.settings !== undefined) out.settings = game.settings;
-  if (game.timerState !== undefined) out.timer_state = game.timerState;
-  if (game.scoreA !== undefined) out.score_a = game.scoreA;
-  if (game.scoreB !== undefined) out.score_b = game.scoreB;
-  return out;
+const mapGameToInsert = (game: Game): GameInsert => {
+  return {
+    id: game.id,
+    name: game.name,
+    join_code: game.joinCode,
+    status: game.status,
+    admin_id: game.adminId,
+    settings: game.settings as any,
+    timer_state: game.timerState as any,
+    score_a: game.scoreA,
+    score_b: game.scoreB,
+  };
 };
 
 const mapPlayerRowToPlayer = (row: PlayerRow): Player => ({
@@ -106,7 +87,7 @@ const mapPlayerRowToPlayer = (row: PlayerRow): Player => ({
   gameId: row.game_id,
 });
 
-const mapPlayerToRow = (player: Player): PlayerRow => ({
+const mapPlayerToInsert = (player: Player): PlayerInsert => ({
   id: player.id,
   name: player.name,
   is_confirmed: player.isConfirmed,
@@ -122,13 +103,27 @@ const mapQueueRowToQueueState = (row: QueueRow): QueueState => ({
   reQueue: row.re_queue || [],
 });
 
-const mapQueueStateToRow = (state: QueueState): QueueRow => ({
+const mapQueueStateToInsert = (state: QueueState): QueueInsert => ({
   game_id: state.gameId,
   team_a: state.teamA,
   team_b: state.teamB,
   next_block: state.nextBlock,
   re_queue: state.reQueue,
 });
+
+const mapGameToUpdate = (game: Partial<Game>): Database['public']['Tables']['games']['Update'] => {
+  const out: Database['public']['Tables']['games']['Update'] = {};
+  if (game.id !== undefined) out.id = game.id;
+  if (game.name !== undefined) out.name = game.name;
+  if (game.joinCode !== undefined) out.join_code = game.joinCode;
+  if (game.status !== undefined) out.status = game.status;
+  if (game.adminId !== undefined) out.admin_id = game.adminId;
+  if (game.settings !== undefined) out.settings = game.settings as any;
+  if (game.timerState !== undefined) out.timer_state = game.timerState as any;
+  if (game.scoreA !== undefined) out.score_a = game.scoreA;
+  if (game.scoreB !== undefined) out.score_b = game.scoreB;
+  return out;
+};
 
 // -----------------------------------------------------------------------------
 // API que o App consome (mesma interface anterior, porém apontando para Supabase)
@@ -184,10 +179,10 @@ export const supabase = {
 
   games: {
     async create(game: Game): Promise<Game> {
-      const row = mapGameToRow(game);
+      const row = mapGameToInsert(game);
       const { data, error } = await client
         .from('games')
-        .insert(row)
+        .insert(row as any)
         .select()
         .single();
 
@@ -231,7 +226,7 @@ export const supabase = {
         .from('games')
         .select('*')
         .eq('admin_id', adminId)
-        .order('created_at', { ascending: false } as any);
+        .order('created_at', { ascending: false });
 
       if (error) {
         throw new Error(error.message);
@@ -241,10 +236,10 @@ export const supabase = {
     },
 
     async update(id: string, updates: Partial<Game>) {
-      const rowUpdates = mapGameToRow(updates);
+      const rowUpdates = mapGameToUpdate(updates);
       const { error } = await client
         .from('games')
-        .update(rowUpdates)
+        .update(rowUpdates as any)
         .eq('id', id);
 
       if (error) {
@@ -269,8 +264,8 @@ export const supabase = {
     },
 
     async upsert(player: Player) {
-      const row = mapPlayerToRow(player);
-      const { error } = await client.from('players').upsert(row);
+      const row = mapPlayerToInsert(player);
+      const { error } = await client.from('players').upsert(row as any);
       if (error) {
         throw new Error(error.message);
       }
@@ -301,8 +296,8 @@ export const supabase = {
     },
 
     async update(gameId: string, state: QueueState) {
-      const row = mapQueueStateToRow(state);
-      const { error } = await client.from('queue_state').upsert(row, {
+      const row = mapQueueStateToInsert(state);
+      const { error } = await client.from('queue_state').upsert(row as any, {
         onConflict: 'game_id',
       } as any);
 

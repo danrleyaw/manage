@@ -1,18 +1,18 @@
-
+// deploy-final-validation-v3
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Plus, Users, ChevronRight, User,
-  ShieldCheck, LogOut, ArrowLeft, Trophy, Share2,
-  Monitor, Shield, ListOrdered, UserCheck,
-  Sparkles, Zap, Settings, UserCircle, Target, ShieldAlert,
-  Dribbble, Flame, Timer as TimerIcon, ChevronLeft, Mail, Lock,
-  ArrowRight, Globe, Trash2, Clock, Minus, Copy, MessageCircle, X,
+  ShieldCheck, LogOut, ArrowLeft, Share2,
+  Shield, UserCheck,
+  Sparkles, Zap, Settings, UserCircle, ShieldAlert,
+  Timer as TimerIcon, ChevronLeft,
+  ArrowRight, Trash2, Clock, Minus, Copy, MessageCircle, X,
   Layers, CheckCircle2, AlertCircle
 } from 'lucide-react';
-import { Game, Player, QueueState } from './types';
-import { supabase } from './services/supabase';
-import { TeamLogic } from './services/team-logic';
-import { MatchTimer } from './components/MatchTimer';
+import { Game, Player, QueueState } from '../types';
+import { supabase } from '../services/supabase';
+import { TeamLogic } from '../services/team-logic';
+import { MatchTimer } from './MatchTimer';
 
 // --- BRANDING EDITORIAL ---
 const BrandLogo: React.FC<{ size?: number; className?: string }> = ({ size = 110, className = "" }) => (
@@ -80,10 +80,12 @@ const TeamCard: React.FC<{ title: string; playerIds: string[]; color: string; al
   );
 };
 
-const App: React.FC = () => {
+// build-fix-v4-structure-sync
+const Dashboard: React.FC = () => {
+  console.log('[App] Mounting Dashboard...');
   const [view, setView] = useState<'auth' | 'dashboard' | 'admin' | 'player' | 'join' | 'create_game'>('auth');
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [currentGame, setCurrentGame] = useState<Game | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [queue, setQueue] = useState<QueueState | null>(null);
@@ -206,7 +208,8 @@ const App: React.FC = () => {
   const updateScore = async (team: 'A' | 'B', delta: number) => {
     if (!currentGame) return;
     const field = team === 'A' ? 'scoreA' : 'scoreB';
-    const newVal = Math.max(0, currentGame[field] + delta);
+    const currentVal = (currentGame[field as keyof Game] as number) || 0;
+    const newVal = Math.max(0, currentVal + delta);
     const updated = { ...currentGame, [field]: newVal };
     setCurrentGame(updated);
     await supabase.games.update(currentGame.id, { [field]: newVal });
@@ -860,4 +863,4 @@ const App: React.FC = () => {
   );
 };
 
-export default App;
+export default Dashboard;
