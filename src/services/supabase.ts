@@ -239,7 +239,7 @@ export const supabase = {
       const rowUpdates = mapGameToUpdate(updates);
       const { error } = await client
         .from('games')
-        .update(rowUpdates as any)
+        .update(rowUpdates)
         .eq('id', id);
 
       if (error) {
