@@ -58,9 +58,26 @@ const Dashboard: React.FC = () => {
   const confirmedField = useMemo(() => players.filter(p => p.isConfirmed && !p.isGoalkeeper), [players]);
 
   useEffect(() => {
+    // Escuta mudanças de sessão do Supabase (login, logout, email confirm redirect)
+    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          const sessionUser = { id: session.user.id, email: session.user.email };
+          setUser(sessionUser);
+          await loadAdminGames(session.user.id);
+          // Só redireciona para dashboard se estiver na tela de auth ou inicializando
+          setView(prev => (prev === 'auth' || prev === 'join') ? 'dashboard' : prev);
+        } else {
+          setUser(null);
+        }
+        setIsInitializing(false);
+      }
+    );
+
+    // Verifica sessão inicial (para recarregamentos de página)
     const init = async () => {
-      const sessionUser = await supabase.auth.getSession();
       const code = new URLSearchParams(window.location.search).get('code');
+      const sessionUser = await supabase.auth.getSession();
       if (sessionUser) {
         setUser(sessionUser);
         await loadAdminGames(sessionUser.id);
@@ -72,6 +89,8 @@ const Dashboard: React.FC = () => {
       setIsInitializing(false);
     };
     init();
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // --- REALTIME SYNC (ESTADO VIVO) ---
@@ -173,20 +192,42 @@ const Dashboard: React.FC = () => {
 
   const finalizeCreateGame = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !gameNameInput.trim()) return;
-    const newGame: Game = {
-      id: Math.random().toString(36).substring(7),
-      name: gameNameInput.toUpperCase(),
-      joinCode: Math.random().toString(36).substring(2, 7).toUpperCase(),
-      status: 'configurando',
-      adminId: user.id,
-      settings: { matchTime: 10 },
-      timerState: { isRunning: false, startTime: null, remainingSeconds: 600 },
-      scoreA: 0, scoreB: 0
-    };
-    await supabase.games.create(newGame);
-    await loadAdminGames(user.id);
-    await joinGame(newGame.joinCode);
+    if (!gameNameInput.trim()) return;
+
+    // Garante sessão atualizada antes de criar
+    let currentUser = user;
+    if (!currentUser) {
+      const session = await supabase.auth.getSession();
+      if (session) {
+        currentUser = session;
+        setUser(session);
+      }
+    }
+
+    if (!currentUser) {
+      alert("Sessão expirada. Faça login novamente.");
+      setView('auth');
+      return;
+    }
+
+    try {
+      const newGame: Game = {
+        id: Math.random().toString(36).substring(7),
+        name: gameNameInput.toUpperCase(),
+        joinCode: Math.random().toString(36).substring(2, 7).toUpperCase(),
+        status: 'configurando',
+        adminId: currentUser.id,
+        settings: { matchTime: 10 },
+        timerState: { isRunning: false, startTime: null, remainingSeconds: 600 },
+        scoreA: 0, scoreB: 0
+      };
+      await supabase.games.create(newGame);
+      await loadAdminGames(currentUser.id);
+      await joinGame(newGame.joinCode);
+    } catch (err: any) {
+      console.error('Erro ao criar arena:', err);
+      alert(`Erro ao criar arena: ${err.message || 'Tente novamente.'}`);
+    }
   };
 
   const handleLogout = async () => {
