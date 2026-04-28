@@ -1,25 +1,22 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { Game, Player, QueueState } from '../types';
+import { Game, Player, QueueState, MatchHistory } from '../types';
 import { Database } from '../types/database.types';
 
 // -----------------------------------------------------------------------------
-// Configuração do cliente Supabase (real, sem mocks)
+// Configuração do cliente Supabase
 // -----------------------------------------------------------------------------
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  // Em desenvolvimento isso ajuda a detectar falta de configuração.
-  // Em produção (Vercel) esses valores vêm das variáveis já configuradas.
-  // eslint-disable-next-line no-console
   console.warn(
     '[supabase] Variáveis VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY não definidas. ' +
     'Configure no .env.local (dev) e na Vercel (production).'
   );
 }
 
-const client = createClient<Database>(
+export const supabaseClient = createClient<Database>(
   SUPABASE_URL || '',
   SUPABASE_ANON_KEY || '',
   {
@@ -126,61 +123,52 @@ const mapGameToUpdate = (game: Partial<Game>): Database['public']['Tables']['gam
 };
 
 // -----------------------------------------------------------------------------
-// API que o App consome (mesma interface anterior, porém apontando para Supabase)
+// API que o App consome
 // -----------------------------------------------------------------------------
-
-const SESSION_KEY = 'football_manager_session';
 
 export const supabase = {
   auth: {
     async signUp(email: string, pass: string) {
-      const { data, error } = await client.auth.signUp({
+      const { data, error } = await supabaseClient.auth.signUp({
         email: String(email),
         password: String(pass),
       });
       if (error || !data.user) {
         throw new Error(error?.message || 'Falha ao registrar usuário');
       }
-
-      const sessionUser = { id: data.user.id, email: data.user.email || email };
-      window.localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
-      return { user: sessionUser };
+      return { user: { id: data.user.id, email: data.user.email || email } };
     },
 
     async signIn(email: string, pass: string) {
-      const { data, error } = await client.auth.signInWithPassword({
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
         email: String(email),
         password: String(pass),
       });
       if (error || !data.user) {
         throw new Error(error?.message || 'Credenciais inválidas');
       }
-
-      const sessionUser = { id: data.user.id, email: data.user.email || email };
-      window.localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
-      return { user: sessionUser };
+      return { user: { id: data.user.id, email: data.user.email || email } };
     },
 
     async signOut() {
-      await client.auth.signOut();
-      window.localStorage.removeItem(SESSION_KEY);
+      await supabaseClient.auth.signOut();
     },
 
-    getUser() {
-      const raw = window.localStorage.getItem(SESSION_KEY);
-      if (!raw) return null;
-      try {
-        return JSON.parse(raw);
-      } catch {
-        return null;
-      }
+    // Retorna a sessão atual de forma assíncrona (fonte de verdade: Supabase)
+    async getSession(): Promise<{ id: string; email?: string } | null> {
+      const { data } = await supabaseClient.auth.getSession();
+      if (!data.session?.user) return null;
+      return {
+        id: data.session.user.id,
+        email: data.session.user.email,
+      };
     },
   },
 
   games: {
     async create(game: Game): Promise<Game> {
       const row = mapGameToInsert(game);
-      const { data, error } = await client
+      const { data, error } = await supabaseClient
         .from('games')
         .insert(row as any)
         .select()
@@ -195,7 +183,7 @@ export const supabase = {
 
     async get(idOrCode: string): Promise<Game | null> {
       // Primeiro tenta por joinCode, depois por id
-      let { data, error } = await client
+      let { data, error } = await supabaseClient
         .from('games')
         .select('*')
         .eq('join_code', idOrCode)
@@ -206,7 +194,7 @@ export const supabase = {
       }
 
       if (!data) {
-        const res = await client
+        const res = await supabaseClient
           .from('games')
           .select('*')
           .eq('id', idOrCode)
@@ -222,7 +210,7 @@ export const supabase = {
     },
 
     async getByAdmin(adminId: string): Promise<Game[]> {
-      const { data, error } = await client
+      const { data, error } = await supabaseClient
         .from('games')
         .select('*')
         .eq('admin_id', adminId)
@@ -237,7 +225,7 @@ export const supabase = {
 
     async update(id: string, updates: Partial<Game>) {
       const rowUpdates = mapGameToUpdate(updates);
-      const { error } = await client
+      const { error } = await supabaseClient
         .from('games')
         .update(rowUpdates)
         .eq('id', id);
@@ -250,7 +238,7 @@ export const supabase = {
 
   players: {
     async getByGame(gameId: string): Promise<Player[]> {
-      const { data, error } = await client
+      const { data, error } = await supabaseClient
         .from('players')
         .select('*')
         .eq('game_id', gameId)
@@ -265,14 +253,14 @@ export const supabase = {
 
     async upsert(player: Player) {
       const row = mapPlayerToInsert(player);
-      const { error } = await client.from('players').upsert(row as any);
+      const { error } = await supabaseClient.from('players').upsert(row as any);
       if (error) {
         throw new Error(error.message);
       }
     },
 
     async delete(id: string) {
-      const { error } = await client.from('players').delete().eq('id', id);
+      const { error } = await supabaseClient.from('players').delete().eq('id', id);
       if (error) {
         throw new Error(error.message);
       }
@@ -282,7 +270,7 @@ export const supabase = {
 
   queue: {
     async get(gameId: string): Promise<QueueState | null> {
-      const { data, error } = await client
+      const { data, error } = await supabaseClient
         .from('queue_state')
         .select('*')
         .eq('game_id', gameId)
@@ -297,13 +285,49 @@ export const supabase = {
 
     async update(gameId: string, state: QueueState) {
       const row = mapQueueStateToInsert(state);
-      const { error } = await client.from('queue_state').upsert(row as any, {
+      const { error } = await supabaseClient.from('queue_state').upsert(row as any, {
         onConflict: 'game_id',
       } as any);
 
       if (error) {
         throw new Error(error.message);
       }
+    },
+  },
+
+  history: {
+    async create(entry: MatchHistory) {
+      const { error } = await supabaseClient.from('match_history').insert({
+        game_id: entry.gameId,
+        score_a: entry.scoreA,
+        score_b: entry.scoreB,
+        winner: entry.winner,
+        team_a_players: entry.playersA,
+        team_b_players: entry.playersB,
+      } as any);
+
+      if (error) throw new Error(error.message);
+    },
+
+    async getByGame(gameId: string): Promise<MatchHistory[]> {
+      const { data, error } = await supabaseClient
+        .from('match_history')
+        .select('*')
+        .eq('game_id', gameId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw new Error(error.message);
+
+      return (data || []).map((row: any) => ({
+        id: row.id,
+        gameId: row.game_id,
+        scoreA: row.score_a,
+        scoreB: row.score_b,
+        winner: row.winner,
+        playersA: row.team_a_players,
+        playersB: row.team_b_players,
+        createdAt: row.created_at,
+      }));
     },
   },
 };

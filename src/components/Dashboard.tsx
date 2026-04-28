@@ -1,96 +1,33 @@
-// deploy-final-validation-v3
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// Fut Manager - Dashboard
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Plus, Users, ChevronRight, User,
-  ShieldCheck, LogOut, ArrowLeft, Share2,
+  ShieldCheck, LogOut, Share2,
   Shield, UserCheck,
   Sparkles, Zap, Settings, UserCircle, ShieldAlert,
-  Timer as TimerIcon, ChevronLeft,
+  ChevronLeft,
   ArrowRight, Trash2, Clock, Minus, Copy, MessageCircle, X,
   Layers, CheckCircle2, AlertCircle
 } from 'lucide-react';
-import { Game, Player, QueueState } from '../types';
-import { supabase } from '../services/supabase';
+import { Game, Player, QueueState, MatchHistory } from '../types';
+import { supabase, supabaseClient } from '../services/supabase';
 import { TeamLogic } from '../services/team-logic';
 import { MatchTimer } from './MatchTimer';
+import { BrandLogo } from './Layout/BrandLogo';
+import { TeamCard } from './Teams/TeamCard';
 
-// --- BRANDING EDITORIAL ---
-const BrandLogo: React.FC<{ size?: number; className?: string }> = ({ size = 110, className = "" }) => (
-  <div className={`flex flex-col items-center select-none ${className}`}>
-    <div className="relative group">
-      <div className="absolute inset-0 bg-blue-500 blur-[80px] opacity-20 transition-opacity group-hover:opacity-30"></div>
-      <div className="relative z-10 flex flex-col items-center">
-        <span className="font-heading italic font-black text-slate-900 leading-none tracking-[-0.08em]" style={{ fontSize: `${size * 0.7}px` }}>FUT</span>
-        <div className="flex items-center gap-2 mt-[-4%]">
-          <div className="h-[3px] w-10 bg-blue-600"></div>
-          <span className="font-heading italic font-black text-blue-600 uppercase tracking-tighter" style={{ fontSize: `${size * 0.3}px` }}>MANAGER</span>
-          <div className="h-[3px] w-10 bg-blue-600"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
 
-// --- COMPONENTE TEAM CARD ---
-const TeamCard: React.FC<{ title: string; playerIds: string[]; color: string; allPlayers: Player[]; isMandante?: boolean }> = ({ title, playerIds, color, allPlayers, isMandante }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div
-      onClick={() => setIsOpen(!isOpen)}
-      className={`bg-white rounded-2xl p-5 border-2 border-slate-200 relative overflow-hidden transition-all duration-500 hover:shadow-xl shadow-md cursor-pointer group`}
-    >
-      <div className="flex justify-between items-center">
-        <div>
-          <p className={`text-[10px] font-black uppercase tracking-[0.3em] mb-1 italic ${isMandante ? 'text-blue-700' : 'text-orange-700'}`}>
-            {isMandante ? 'MANDANTE' : 'DESAFIANTE'}
-          </p>
-          <h3 className="text-base font-heading italic text-slate-900 leading-none tracking-tight transition-colors group-hover:text-blue-600">{title}</h3>
-        </div>
-        <div className="flex items-center gap-3">
-          <Shield size={18} className={isMandante ? 'text-blue-600' : 'text-orange-600'} />
-          <ChevronRight size={18} className={`text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-90 text-blue-600' : ''}`} />
-        </div>
-      </div>
-
-      {isOpen && (
-        <div className="space-y-1 mt-4 animate-in slide-in-from-top-2 duration-300">
-          <div className="h-[1px] w-full bg-slate-200 mb-3"></div>
-          {playerIds.length === 0 ? (
-            <div className="py-4 text-center text-slate-400 italic text-[10px] uppercase font-black tracking-[0.2em]">Escalando...</div>
-          ) : (
-            playerIds.map((id, i) => {
-              const p = allPlayers.find(x => x.id === id);
-              return (
-                <div key={`${id}-${i}`} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-6 h-6 flex items-center justify-center rounded-md ${p?.isGoalkeeper ? 'bg-orange-600' : 'bg-slate-900'} text-white shadow-sm`}>
-                      {p?.isGoalkeeper ? <ShieldCheck size={12} /> : <User size={12} />}
-                    </div>
-                    <span className="font-black text-slate-800 uppercase text-[11px] tracking-tight">{p?.name || 'Vazio'}</span>
-                  </div>
-                  {p?.isGoalkeeper && <span className="text-[9px] font-black text-orange-700 bg-orange-100 px-2 py-0.5 rounded border border-orange-200">GK</span>}
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// build-fix-v4-structure-sync
 const Dashboard: React.FC = () => {
-  console.log('[App] Mounting Dashboard...');
   const [view, setView] = useState<'auth' | 'dashboard' | 'admin' | 'player' | 'join' | 'create_game'>('auth');
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [currentGame, setCurrentGame] = useState<Game | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [queue, setQueue] = useState<QueueState | null>(null);
   const [adminGames, setAdminGames] = useState<Game[]>([]);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showGoalAnim, setShowGoalAnim] = useState<'A' | 'B' | null>(null);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -121,18 +58,72 @@ const Dashboard: React.FC = () => {
   const confirmedField = useMemo(() => players.filter(p => p.isConfirmed && !p.isGoalkeeper), [players]);
 
   useEffect(() => {
-    const sessionUser = supabase.auth.getUser();
-    if (sessionUser) {
-      setUser(sessionUser);
-      loadAdminGames(sessionUser.id);
+    const init = async () => {
+      const sessionUser = await supabase.auth.getSession();
       const code = new URLSearchParams(window.location.search).get('code');
-      if (code) joinGame(code);
-      else setView('dashboard');
-    } else {
-      const code = new URLSearchParams(window.location.search).get('code');
-      if (code) joinGame(code);
-    }
+      if (sessionUser) {
+        setUser(sessionUser);
+        await loadAdminGames(sessionUser.id);
+        if (code) await joinGame(code);
+        else setView('dashboard');
+      } else {
+        if (code) await joinGame(code);
+      }
+      setIsInitializing(false);
+    };
+    init();
   }, []);
+
+  // --- REALTIME SYNC (ESTADO VIVO) ---
+  useEffect(() => {
+    if (!currentGame?.id) return;
+
+    const channel = supabaseClient
+      .channel(`game_sync_${currentGame.id}`)
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'games', filter: `id=eq.${currentGame.id}` }, 
+        async (payload: any) => {
+          // Re-busca os dados para garantir consistência com o mapeamento
+          const updated = await supabase.games.get(currentGame.joinCode);
+          if (updated) setCurrentGame(updated);
+        }
+      )
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'players', filter: `game_id=eq.${currentGame.id}` }, 
+        async () => {
+          const fresh = await supabase.players.getByGame(currentGame.id);
+          setPlayers(fresh);
+        }
+      )
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'queue_state', filter: `game_id=eq.${currentGame.id}` }, 
+        async () => {
+          const fresh = await supabase.queue.get(currentGame.id);
+          setQueue(fresh);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabaseClient.removeChannel(channel);
+    };
+  }, [currentGame?.id, currentGame?.joinCode]);
+
+  // --- GOAL ANIMATION TRIGGER ---
+  const prevScores = useRef({ a: currentGame?.scoreA || 0, b: currentGame?.scoreB || 0 });
+  useEffect(() => {
+    if (!currentGame) return;
+    
+    if (currentGame.scoreA > prevScores.current.a) {
+      setShowGoalAnim('A');
+      setTimeout(() => setShowGoalAnim(null), 2500);
+    } else if (currentGame.scoreB > prevScores.current.b) {
+      setShowGoalAnim('B');
+      setTimeout(() => setShowGoalAnim(null), 2500);
+    }
+    
+    prevScores.current = { a: currentGame.scoreA, b: currentGame.scoreB };
+  }, [currentGame?.scoreA, currentGame?.scoreB]);
 
   const loadAdminGames = async (uid: string) => setAdminGames(await supabase.games.getByAdmin(uid));
 
@@ -173,7 +164,7 @@ const Dashboard: React.FC = () => {
     setPlayers(playerList);
     setQueue(await supabase.queue.get(game.id));
 
-    const sessionUser = supabase.auth.getUser();
+    const sessionUser = await supabase.auth.getSession();
     setView(sessionUser?.id === game.adminId ? 'admin' : 'player');
 
     const localName = localStorage.getItem(`player_name_${game.id}`);
@@ -198,8 +189,8 @@ const Dashboard: React.FC = () => {
     await joinGame(newGame.joinCode);
   };
 
-  const handleLogout = () => {
-    supabase.auth.signOut();
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
     setCurrentGame(null);
     setView('auth');
@@ -239,6 +230,17 @@ const Dashboard: React.FC = () => {
       scoreB: 0,
       timerState: { isRunning: false, startTime: null, remainingSeconds: resetTime }
     };
+    
+    // Salvar histórico de forma assíncrona
+    supabase.history.create({
+      gameId: currentGame.id,
+      scoreA: currentGame.scoreA,
+      scoreB: currentGame.scoreB,
+      winner,
+      playersA: queue.teamA,
+      playersB: queue.teamB
+    }).catch(console.error);
+
     await Promise.all([
       supabase.queue.update(currentGame.id, nextState),
       supabase.games.update(currentGame.id, updates)
@@ -367,6 +369,15 @@ const Dashboard: React.FC = () => {
   }, [queue?.reQueue]);
 
   // --- RENDERS ---
+
+  if (isInitializing) return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+        <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] italic">Carregando...</p>
+      </div>
+    </div>
+  );
 
   if (view === 'auth') return (
     <div className="min-h-screen flex items-center justify-center bg-white p-6 relative">
@@ -556,6 +567,18 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
+      {/* ANIMAÇÃO DE GOL */}
+      {showGoalAnim && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center pointer-events-none p-4">
+          <div className={`animate-goal ${showGoalAnim === 'A' ? 'bg-blue-600' : 'bg-orange-600'} text-white px-10 py-8 md:px-20 md:py-12 rounded-[3rem] shadow-[0_0_100px_rgba(0,0,0,0.3)] text-center border-4 border-white/20 backdrop-blur-sm`}>
+            <div className="text-7xl md:text-9xl font-heading italic font-black tracking-tighter leading-none mb-4">GOOOOOL!</div>
+            <div className="text-sm md:text-2xl font-black uppercase tracking-[0.5em] opacity-80">
+              TIME {showGoalAnim === 'A' ? 'ALPHA' : 'BETA'} MARCOU!
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-2xl mx-auto p-5 space-y-8 pt-8 animate-in fade-in duration-1000">
         <div className="flex items-center justify-between bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
           <button onClick={() => { setView(user ? 'dashboard' : 'auth'); setCurrentGame(null); }} className="flex items-center gap-3 text-slate-500 hover:text-slate-900 transition-all font-black group px-3">
@@ -593,7 +616,7 @@ const Dashboard: React.FC = () => {
               <div className="space-y-5">
                 <div className="flex flex-col gap-2 px-3">
                   <span className="text-[11px] font-black text-slate-600 uppercase tracking-[0.4em] italic">Identificação</span>
-                  <p className="text-[12px] text-slate-400 font-black uppercase tracking widest">NOME NA LISTA</p>
+                  <p className="text-[12px] text-slate-400 font-black uppercase tracking-widest">NOME NA LISTA</p>
                 </div>
                 <input
                   type="text"

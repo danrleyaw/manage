@@ -99,6 +99,38 @@ export interface Database {
                     updated_at?: string
                 }
             }
+            match_history: {
+                Row: {
+                    id: string
+                    game_id: string
+                    score_a: number
+                    score_b: number
+                    winner: string
+                    team_a_players: string[]
+                    team_b_players: string[]
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    game_id: string
+                    score_a: number
+                    score_b: number
+                    winner: string
+                    team_a_players?: string[]
+                    team_b_players?: string[]
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    game_id?: string
+                    score_a?: number
+                    score_b?: number
+                    winner?: string
+                    team_a_players?: string[]
+                    team_b_players?: string[]
+                    created_at?: string
+                }
+            }
         }
     }
 }

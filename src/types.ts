@@ -38,3 +38,14 @@ export interface QueueState {
   nextBlock: string[]; // Próximos 4 (NEXT4)
   reQueue: string[]; // Fila de espera (RE)
 }
+
+export interface MatchHistory {
+  id?: string;
+  gameId: string;
+  scoreA: number;
+  scoreB: number;
+  winner: 'A' | 'B' | 'Empate';
+  playersA: string[];
+  playersB: string[];
+  createdAt?: string;
+}
