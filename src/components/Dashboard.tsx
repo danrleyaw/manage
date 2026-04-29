@@ -45,11 +45,20 @@ function useOrientation() {
 
   useEffect(() => {
     const check = () => {
-      // Landscape em mobile: largura > altura e largura < 1024px (não é desktop)
-      setIsLandscape(window.innerWidth > window.innerHeight && window.innerWidth < 1024);
+      const landscape = window.innerWidth > window.innerHeight && window.innerWidth < 1024;
+      setIsLandscape(landscape);
+
+      // Muda a theme-color para combinar com o fundo no landscape
+      // Isso faz a status bar do Android ficar da mesma cor do app
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) {
+        meta.setAttribute('content', landscape ? '#020617' : '#2563eb');
+      }
     };
     window.addEventListener('resize', check);
     window.addEventListener('orientationchange', check);
+    // Roda imediatamente
+    check();
     return () => {
       window.removeEventListener('resize', check);
       window.removeEventListener('orientationchange', check);
@@ -696,8 +705,8 @@ const Dashboard: React.FC = () => {
   // --- GAMEPLAY VIEW ---
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-28 safe-bottom">
-      {/* Barra admin */}
-      {isCurrentGameAdmin && view === 'admin' && (
+      {/* Barra admin — oculta no landscape */}
+      {isCurrentGameAdmin && view === 'admin' && !isLandscape && (
         <div className="bg-slate-900 dark:bg-blue-900 text-white py-2 px-6 flex items-center justify-center gap-3 sticky top-0 z-[100] border-b-2 border-white/10 shadow-xl">
           <ShieldAlert size={13} className="text-blue-400 animate-pulse" />
           <span className="text-[10px] font-black uppercase tracking-[0.5em] italic">ADMIN MODE ACTIVE</span>
@@ -826,7 +835,7 @@ const Dashboard: React.FC = () => {
           <>
             {/* ── LANDSCAPE: layout compacto tudo numa tela ── */}
             {isLandscape ? (
-              <div className="fixed inset-0 z-50 bg-slate-50 dark:bg-slate-950 pt-safe">
+              <div className="fixed inset-0 z-[200] bg-slate-950">
                 <LandscapeView
                   game={currentGame}
                   queue={queue}
