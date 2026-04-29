@@ -83,23 +83,25 @@ const Dashboard: React.FC = () => {
 
     const init = async () => {
       try {
-        // Lê sessão diretamente — rápido, sem depender de eventos
         const { data } = await supabaseClient.auth.getSession();
         const session = data?.session;
 
         if (session?.user) {
           const sessionUser = { id: session.user.id, email: session.user.email };
           setUser(sessionUser);
-          await loadAdminGames(session.user.id);
-          if (code) await joinGame(code);
-          else setView('dashboard');
+          // Carrega jogos em background — não bloqueia o loading
+          loadAdminGames(session.user.id).catch(console.error);
+          if (code) {
+            setIsInitializing(false);
+            await joinGame(code);
+          } else {
+            setView('dashboard');
+          }
         } else {
           if (code) {
-            // Tem código na URL mas não está logado → vai para join
             setJoinCodeInput(code.toUpperCase());
             setView('join');
           }
-          // Sem sessão e sem código → tela de auth (padrão)
         }
       } catch (e) {
         console.error('Init error:', e);
@@ -108,15 +110,16 @@ const Dashboard: React.FC = () => {
       }
     };
 
-    init();
+    // Timeout absoluto de 3s — nunca trava
+    const t = setTimeout(() => setIsInitializing(false), 3000);
+    init().finally(() => clearTimeout(t));
 
-    // Escuta mudanças após o init (login, logout, token refresh)
     const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
           const sessionUser = { id: session.user.id, email: session.user.email };
           setUser(sessionUser);
-          await loadAdminGames(session.user.id);
+          loadAdminGames(session.user.id).catch(console.error);
           setView(prev => (prev === 'auth' || prev === 'join') ? 'dashboard' : prev);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
