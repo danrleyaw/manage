@@ -81,40 +81,51 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get('code');
 
-    // Timeout de segurança: se o Supabase demorar mais de 5s, sai do loading
-    const safetyTimer = setTimeout(() => {
-      setIsInitializing(false);
-    }, 5000);
-
-    // onAuthStateChange dispara INITIAL_SESSION automaticamente no mount,
-    // incluindo recarregamentos de página — é a única fonte de verdade.
-    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
-      async (event, session) => {
-        clearTimeout(safetyTimer);
+    const init = async () => {
+      try {
+        // Lê sessão diretamente — rápido, sem depender de eventos
+        const { data } = await supabaseClient.auth.getSession();
+        const session = data?.session;
 
         if (session?.user) {
           const sessionUser = { id: session.user.id, email: session.user.email };
           setUser(sessionUser);
           await loadAdminGames(session.user.id);
-
-          if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-            if (code) await joinGame(code);
-            else setView(prev => prev === 'auth' ? 'dashboard' : prev);
-          }
+          if (code) await joinGame(code);
+          else setView('dashboard');
         } else {
-          setUser(null);
-          if (event === 'INITIAL_SESSION') {
-            if (code) setView('join');
+          if (code) {
+            // Tem código na URL mas não está logado → vai para join
+            setJoinCodeInput(code.toUpperCase());
+            setView('join');
           }
+          // Sem sessão e sem código → tela de auth (padrão)
         }
+      } catch (e) {
+        console.error('Init error:', e);
+      } finally {
         setIsInitializing(false);
+      }
+    };
+
+    init();
+
+    // Escuta mudanças após o init (login, logout, token refresh)
+    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          const sessionUser = { id: session.user.id, email: session.user.email };
+          setUser(sessionUser);
+          await loadAdminGames(session.user.id);
+          setView(prev => (prev === 'auth' || prev === 'join') ? 'dashboard' : prev);
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setView('auth');
+        }
       }
     );
 
-    return () => {
-      clearTimeout(safetyTimer);
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   // --- REALTIME SYNC (ESTADO VIVO) ---
