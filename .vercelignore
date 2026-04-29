@@ -1,0 +1,11 @@
+node_portable
+node_modules
+dist
+*.local
+set_env.js
+temp_key.txt
+cleanup_mig.js
+cleanup_mig.cjs
+supabase_*.sql
+generate_icons.mjs
+*.mjs
