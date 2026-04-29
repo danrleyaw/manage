@@ -15,6 +15,7 @@ import { TeamLogic } from '../services/team-logic';
 import { MatchTimer } from './MatchTimer';
 import { BrandLogo } from './Layout/BrandLogo';
 import { TeamCard } from './Teams/TeamCard';
+import { LandscapeView } from './LandscapeView';
 
 // ── Hook de tema ──────────────────────────────────────────
 function useTheme() {
@@ -36,9 +37,32 @@ function useTheme() {
   return { dark, toggle: () => setDark(d => !d) };
 }
 
+// ── Hook de orientação ────────────────────────────────────
+function useOrientation() {
+  const [isLandscape, setIsLandscape] = useState(
+    () => window.innerWidth > window.innerHeight && window.innerWidth < 1024
+  );
+
+  useEffect(() => {
+    const check = () => {
+      // Landscape em mobile: largura > altura e largura < 1024px (não é desktop)
+      setIsLandscape(window.innerWidth > window.innerHeight && window.innerWidth < 1024);
+    };
+    window.addEventListener('resize', check);
+    window.addEventListener('orientationchange', check);
+    return () => {
+      window.removeEventListener('resize', check);
+      window.removeEventListener('orientationchange', check);
+    };
+  }, []);
+
+  return isLandscape;
+}
+
 
 const Dashboard: React.FC = () => {
   const { dark, toggle: toggleTheme } = useTheme();
+  const isLandscape = useOrientation();
   const [view, setView] = useState<'auth' | 'dashboard' | 'admin' | 'player' | 'join' | 'create_game'>('auth');
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
@@ -799,6 +823,21 @@ const Dashboard: React.FC = () => {
 
         {/* VISÃO DO ADMINISTRADOR - EM JOGO */}
         {view === 'admin' && currentGame?.status === 'em_jogo' && (
+          <>
+            {/* ── LANDSCAPE: layout compacto tudo numa tela ── */}
+            {isLandscape ? (
+              <div className="fixed inset-0 z-50 bg-slate-50 dark:bg-slate-950 pt-safe">
+                <LandscapeView
+                  game={currentGame}
+                  queue={queue}
+                  players={players}
+                  isAdmin={isCurrentGameAdmin}
+                  onUpdate={handleUpdateGame}
+                  onScore={updateScore}
+                  onEndMatch={handleEndMatch}
+                />
+              </div>
+            ) : (
           <div className="space-y-8 pb-10">
             {currentGame && <MatchTimer game={currentGame} isAdmin={true} onUpdate={handleUpdateGame} />}
 
@@ -908,6 +947,8 @@ const Dashboard: React.FC = () => {
               <button onClick={() => handleEndMatch('B')} className="bg-orange-600 text-white py-5 rounded-2xl font-heading italic text-[11px] uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all border-b-4 border-orange-800 font-black">WIN BETA</button>
             </div>
           </div>
+            )}
+          </>
         )}
 
         {/* ADMIN - CONFIGURANDO */}
