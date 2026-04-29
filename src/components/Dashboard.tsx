@@ -79,39 +79,42 @@ const Dashboard: React.FC = () => {
   const confirmedField = useMemo(() => players.filter(p => p.isConfirmed && !p.isGoalkeeper), [players]);
 
   useEffect(() => {
-    // Escuta mudanças de sessão do Supabase (login, logout, email confirm redirect)
+    const code = new URLSearchParams(window.location.search).get('code');
+
+    // Timeout de segurança: se o Supabase demorar mais de 5s, sai do loading
+    const safetyTimer = setTimeout(() => {
+      setIsInitializing(false);
+    }, 5000);
+
+    // onAuthStateChange dispara INITIAL_SESSION automaticamente no mount,
+    // incluindo recarregamentos de página — é a única fonte de verdade.
     const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
       async (event, session) => {
+        clearTimeout(safetyTimer);
+
         if (session?.user) {
           const sessionUser = { id: session.user.id, email: session.user.email };
           setUser(sessionUser);
           await loadAdminGames(session.user.id);
-          // Só redireciona para dashboard se estiver na tela de auth ou inicializando
-          setView(prev => (prev === 'auth' || prev === 'join') ? 'dashboard' : prev);
+
+          if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+            if (code) await joinGame(code);
+            else setView(prev => prev === 'auth' ? 'dashboard' : prev);
+          }
         } else {
           setUser(null);
+          if (event === 'INITIAL_SESSION') {
+            if (code) setView('join');
+          }
         }
         setIsInitializing(false);
       }
     );
 
-    // Verifica sessão inicial (para recarregamentos de página)
-    const init = async () => {
-      const code = new URLSearchParams(window.location.search).get('code');
-      const sessionUser = await supabase.auth.getSession();
-      if (sessionUser) {
-        setUser(sessionUser);
-        await loadAdminGames(sessionUser.id);
-        if (code) await joinGame(code);
-        else setView('dashboard');
-      } else {
-        if (code) await joinGame(code);
-      }
-      setIsInitializing(false);
+    return () => {
+      clearTimeout(safetyTimer);
+      subscription.unsubscribe();
     };
-    init();
-
-    return () => subscription.unsubscribe();
   }, []);
 
   // --- REALTIME SYNC (ESTADO VIVO) ---
