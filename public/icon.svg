@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0f172a"/>
+  <rect width="512" height="512" rx="112" fill="url(#grad)"/>
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e3a5f;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Bola de futebol estilizada -->
+  <circle cx="256" cy="210" r="110" fill="none" stroke="#3b82f6" stroke-width="12"/>
+  <circle cx="256" cy="210" r="110" fill="url(#ballgrad)" opacity="0.15"/>
+  <defs>
+    <radialGradient id="ballgrad" cx="40%" cy="35%">
+      <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+    </radialGradient>
+  </defs>
+  <!-- Pentágono central -->
+  <polygon points="256,160 290,183 278,222 234,222 222,183" fill="#3b82f6" opacity="0.9"/>
+  <!-- Linhas da bola -->
+  <line x1="256" y1="100" x2="256" y2="160" stroke="#3b82f6" stroke-width="8" opacity="0.6"/>
+  <line x1="346" y1="155" x2="290" y2="183" stroke="#3b82f6" stroke-width="8" opacity="0.6"/>
+  <line x1="312" y1="310" x2="278" y2="222" stroke="#3b82f6" stroke-width="8" opacity="0.6"/>
+  <line x1="200" y1="310" x2="234" y2="222" stroke="#3b82f6" stroke-width="8" opacity="0.6"/>
+  <line x1="166" y1="155" x2="222" y2="183" stroke="#3b82f6" stroke-width="8" opacity="0.6"/>
+  <!-- Texto FUT -->
+  <text x="256" y="385" font-family="Arial Black, sans-serif" font-size="88" font-weight="900" font-style="italic" fill="white" text-anchor="middle" letter-spacing="-2">FUT</text>
+  <!-- Linha decorativa -->
+  <rect x="156" y="400" width="200" height="4" rx="2" fill="#3b82f6"/>
+  <!-- Texto MANAGER -->
+  <text x="256" y="440" font-family="Arial, sans-serif" font-size="36" font-weight="900" fill="#3b82f6" text-anchor="middle" letter-spacing="6">MANAGER</text>
+</svg>
