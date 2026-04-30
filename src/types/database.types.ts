@@ -53,6 +53,7 @@ export interface Database {
                     name: string
                     is_confirmed: boolean
                     is_goalkeeper: boolean
+                    is_paid: boolean
                     game_id: string
                     created_at: string
                 }
@@ -61,6 +62,7 @@ export interface Database {
                     name: string
                     is_confirmed?: boolean
                     is_goalkeeper?: boolean
+                    is_paid?: boolean
                     game_id: string
                     created_at?: string
                 }
@@ -69,6 +71,7 @@ export interface Database {
                     name?: string
                     is_confirmed?: boolean
                     is_goalkeeper?: boolean
+                    is_paid?: boolean
                     game_id?: string
                     created_at?: string
                 }

@@ -16,6 +16,7 @@ import { MatchTimer } from './MatchTimer';
 import { BrandLogo } from './Layout/BrandLogo';
 import { TeamCard } from './Teams/TeamCard';
 import { LandscapeView } from './LandscapeView';
+import { PaymentList, ArenaSettings, PlayerPaymentCard } from './PaymentPanel';
 
 // ── Hook de tema ──────────────────────────────────────────
 function useTheme() {
@@ -90,6 +91,7 @@ const Dashboard: React.FC = () => {
   const [adminAddPlayerName, setAdminAddPlayerName] = useState('');
   const [gameNameInput, setGameNameInput] = useState('');
   const [selectedPosition, setSelectedPosition] = useState<'linha' | 'goleiro'>('linha');
+  const [adminTab, setAdminTab] = useState<'roster' | 'payment' | 'settings'>('roster');
 
   const isCurrentGameAdmin = useMemo(() => user?.id === currentGame?.adminId, [user?.id, currentGame?.adminId]);
 
@@ -444,6 +446,19 @@ const Dashboard: React.FC = () => {
       console.error(e);
       alert("Falha na exclusão.");
     }
+  };
+
+  const togglePaid = async (p: Player) => {
+    if (!currentGame) return;
+    await supabase.players.upsert({ ...p, isPaid: !p.isPaid });
+    setPlayers(await supabase.players.getByGame(currentGame.id));
+  };
+
+  const updateArenaSettings = async (updates: Partial<Game['settings']>) => {
+    if (!currentGame) return;
+    const newSettings = { ...currentGame.settings, ...updates };
+    setCurrentGame({ ...currentGame, settings: newSettings });
+    await supabase.games.update(currentGame.id, { settings: newSettings });
   };
 
   // --- LÓGICA DE COMPARTILHAMENTO ---
@@ -826,6 +841,14 @@ const Dashboard: React.FC = () => {
                   {guestPlayer?.isConfirmed ? 'VOCÊ JÁ ESTÁ NA ARENA! BOA SORTE ATLETA.' : 'ATIVE O BOTÃO PARA CONFIRMAR SUA PRESENÇA.'}
                 </p>
               </div>
+
+              {/* Card de Pix + Local para o jogador */}
+              {guestPlayer?.isConfirmed && currentGame && (
+                <PlayerPaymentCard
+                  settings={currentGame.settings}
+                  isPaid={guestPlayer.isPaid}
+                />
+              )}
             </div>
           </div>
         )}
@@ -963,83 +986,122 @@ const Dashboard: React.FC = () => {
         {/* ADMIN - CONFIGURANDO */}
         {view === 'admin' && currentGame?.status === 'configurando' && (
           <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-            {/* Adicionar jogador */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 space-y-4">
-              <div className="flex items-center gap-3">
-                <UserCircle size={20} className="text-slate-600 dark:text-slate-400" />
-                <span className="text-[11px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-[0.4em] italic">Escalação</span>
-              </div>
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  value={adminAddPlayerName}
-                  onChange={e => setAdminAddPlayerName(e.target.value)}
-                  placeholder="NOME DO ATLETA"
-                  className="flex-1 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 p-4 rounded-2xl text-[13px] font-black uppercase focus:border-blue-600 outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 text-slate-900 dark:text-white"
-                  onKeyDown={e => e.key === 'Enter' && adminAddPlayer()}
-                />
-                <button onClick={adminAddPlayer} className="bg-slate-900 dark:bg-blue-600 text-white px-6 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 transition-colors shadow-lg active:scale-95">
-                  ADD
+
+            {/* Abas */}
+            <div className="flex gap-2 p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+              {[
+                { key: 'roster', label: 'Escalação' },
+                { key: 'payment', label: 'Pagamentos' },
+                { key: 'settings', label: 'Configurações' },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setAdminTab(tab.key as any)}
+                  className={`flex-1 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all ${
+                    adminTab === tab.key
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-md'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  {tab.label}
                 </button>
-              </div>
+              ))}
             </div>
-
-            {/* Tempo da partida */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-slate-100 dark:border-slate-800 shadow-lg space-y-4">
-              <div className="flex items-center gap-3">
-                <Clock size={20} className="text-blue-600" />
-                <span className="text-[11px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-[0.4em] italic">Tempo da Partida</span>
-              </div>
-              <div className="flex items-center justify-center gap-8 py-2">
-                <button onClick={() => updateMatchTime(currentGame.settings.matchTime - 1)} className="w-14 h-14 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-90"><Minus size={24} strokeWidth={3} /></button>
-                <div className="text-center">
-                  <span className="text-6xl font-heading italic text-slate-900 dark:text-white tabular-nums font-black">{currentGame.settings.matchTime}</span>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-2 italic">MINUTOS</p>
-                </div>
-                <button onClick={() => updateMatchTime(currentGame.settings.matchTime + 1)} className="w-14 h-14 flex items-center justify-center rounded-full bg-slate-900 dark:bg-blue-600 text-white hover:bg-blue-700 transition-all active:scale-90 shadow-xl"><Plus size={24} strokeWidth={3} /></button>
-              </div>
-            </div>
-
-            {/* Roster */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-slate-100 dark:border-slate-800 shadow-lg">
-              <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="text-[11px] font-black uppercase text-blue-600 tracking-[0.4em] italic">ROSTER ({confirmedPlayers.length})</h3>
-                <div className="flex gap-6">
-                  <div className="text-center">
-                    <p className="text-[9px] font-black text-slate-400 uppercase italic mb-0.5">GK</p>
-                    <p className="text-xl font-heading italic text-slate-900 dark:text-white font-black">{confirmedGK.length}<span className="text-slate-300 dark:text-slate-600 text-sm">/2</span></p>
+            {/* ABA: ESCALAÇÃO */}
+            {adminTab === 'roster' && (
+              <>
+                {/* Adicionar jogador */}
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <UserCircle size={20} className="text-slate-600 dark:text-slate-400" />
+                    <span className="text-[11px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-[0.4em] italic">Escalação</span>
                   </div>
-                  <div className="text-center">
-                    <p className="text-[9px] font-black text-slate-400 uppercase italic mb-0.5">LINHA</p>
-                    <p className="text-xl font-heading italic text-slate-900 dark:text-white font-black">{confirmedField.length}<span className="text-slate-300 dark:text-slate-600 text-sm">/8</span></p>
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={adminAddPlayerName}
+                      onChange={e => setAdminAddPlayerName(e.target.value)}
+                      placeholder="NOME DO ATLETA"
+                      className="flex-1 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 p-4 rounded-2xl text-[13px] font-black uppercase focus:border-blue-600 outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 text-slate-900 dark:text-white"
+                      onKeyDown={e => e.key === 'Enter' && adminAddPlayer()}
+                    />
+                    <button onClick={adminAddPlayer} className="bg-slate-900 dark:bg-blue-600 text-white px-6 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 transition-colors shadow-lg active:scale-95">
+                      ADD
+                    </button>
                   </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
-                {players.map(p => (
-                  <div key={p.id} className={`p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 flex items-center justify-between transition-all ${p.isConfirmed ? 'border-blue-100 dark:border-blue-900 shadow-sm' : 'border-slate-200 dark:border-slate-700 opacity-50'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 flex items-center justify-center rounded-xl ${p.isGoalkeeper ? 'bg-orange-600' : 'bg-slate-900 dark:bg-slate-600'} text-white`}>
-                        {p.isGoalkeeper ? <Shield size={14} /> : <User size={14} />}
+                {/* Tempo da partida */}
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-slate-100 dark:border-slate-800 shadow-lg space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Clock size={20} className="text-blue-600" />
+                    <span className="text-[11px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-[0.4em] italic">Tempo da Partida</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-8 py-2">
+                    <button onClick={() => updateMatchTime(currentGame.settings.matchTime - 1)} className="w-14 h-14 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-90"><Minus size={24} strokeWidth={3} /></button>
+                    <div className="text-center">
+                      <span className="text-6xl font-heading italic text-slate-900 dark:text-white tabular-nums font-black">{currentGame.settings.matchTime}</span>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-2 italic">MINUTOS</p>
+                    </div>
+                    <button onClick={() => updateMatchTime(currentGame.settings.matchTime + 1)} className="w-14 h-14 flex items-center justify-center rounded-full bg-slate-900 dark:bg-blue-600 text-white hover:bg-blue-700 transition-all active:scale-90 shadow-xl"><Plus size={24} strokeWidth={3} /></button>
+                  </div>
+                </div>
+
+                {/* Roster */}
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-slate-100 dark:border-slate-800 shadow-lg">
+                  <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-[11px] font-black uppercase text-blue-600 tracking-[0.4em] italic">ROSTER ({confirmedPlayers.length})</h3>
+                    <div className="flex gap-6">
+                      <div className="text-center">
+                        <p className="text-[9px] font-black text-slate-400 uppercase italic mb-0.5">GK</p>
+                        <p className="text-xl font-heading italic text-slate-900 dark:text-white font-black">{confirmedGK.length}<span className="text-slate-300 dark:text-slate-600 text-sm">/2</span></p>
                       </div>
-                      <span className="font-heading italic text-slate-900 dark:text-white uppercase text-[12px] font-black">{p.name}</span>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <button onClick={() => toggleConfirm(p)} className={`p-2 rounded-xl transition-all ${p.isConfirmed ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-emerald-500 hover:text-white'}`}><UserCheck size={15} /></button>
-                      <button onClick={() => toggleGK(p)} className={`p-2 rounded-xl transition-all ${p.isGoalkeeper ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-orange-500 hover:text-white'}`}><Shield size={15} /></button>
-                      <button onClick={(e) => { e.stopPropagation(); removePlayer(p.id); }} className="p-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-red-500 hover:text-white transition-all"><Trash2 size={15} /></button>
+                      <div className="text-center">
+                        <p className="text-[9px] font-black text-slate-400 uppercase italic mb-0.5">LINHA</p>
+                        <p className="text-xl font-heading italic text-slate-900 dark:text-white font-black">{confirmedField.length}<span className="text-slate-300 dark:text-slate-600 text-sm">/8</span></p>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
 
-              {confirmedPlayers.length >= 10 && (
-                <button onClick={startDraw} className="w-full p-5 rounded-2xl font-heading italic text-lg uppercase tracking-[0.2em] bg-slate-900 dark:bg-blue-600 text-white shadow-2xl active:scale-95 transition-all hover:bg-blue-700 border-b-4 border-slate-950 dark:border-blue-800">
-                  REALIZAR SORTEIO ELITE
-                </button>
-              )}
-            </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
+                    {players.map(p => (
+                      <div key={p.id} className={`p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 flex items-center justify-between transition-all ${p.isConfirmed ? 'border-blue-100 dark:border-blue-900 shadow-sm' : 'border-slate-200 dark:border-slate-700 opacity-50'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 flex items-center justify-center rounded-xl ${p.isGoalkeeper ? 'bg-orange-600' : 'bg-slate-900 dark:bg-slate-600'} text-white`}>
+                            {p.isGoalkeeper ? <Shield size={14} /> : <User size={14} />}
+                          </div>
+                          <span className="font-heading italic text-slate-900 dark:text-white uppercase text-[12px] font-black">{p.name}</span>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button onClick={() => toggleConfirm(p)} className={`p-2 rounded-xl transition-all ${p.isConfirmed ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-emerald-500 hover:text-white'}`}><UserCheck size={15} /></button>
+                          <button onClick={() => toggleGK(p)} className={`p-2 rounded-xl transition-all ${p.isGoalkeeper ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-orange-500 hover:text-white'}`}><Shield size={15} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); removePlayer(p.id); }} className="p-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-red-500 hover:text-white transition-all"><Trash2 size={15} /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {confirmedPlayers.length >= 10 && (
+                    <button onClick={startDraw} className="w-full p-5 rounded-2xl font-heading italic text-lg uppercase tracking-[0.2em] bg-slate-900 dark:bg-blue-600 text-white shadow-2xl active:scale-95 transition-all hover:bg-blue-700 border-b-4 border-slate-950 dark:border-blue-800">
+                      REALIZAR SORTEIO ELITE
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ABA: PAGAMENTOS */}
+            {adminTab === 'payment' && (
+              <PaymentList players={players} onTogglePaid={togglePaid} />
+            )}
+
+            {/* ABA: CONFIGURAÇÕES */}
+            {adminTab === 'settings' && (
+              <ArenaSettings
+                settings={currentGame.settings}
+                onSave={updateArenaSettings}
+              />
+            )}
           </div>
         )}
       </div>

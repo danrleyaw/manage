@@ -81,6 +81,7 @@ const mapPlayerRowToPlayer = (row: PlayerRow): Player => ({
   name: row.name,
   isConfirmed: row.is_confirmed,
   isGoalkeeper: row.is_goalkeeper,
+  isPaid: row.is_paid ?? false,
   gameId: row.game_id,
 });
 
@@ -89,6 +90,7 @@ const mapPlayerToInsert = (player: Player): PlayerInsert => ({
   name: player.name,
   is_confirmed: player.isConfirmed,
   is_goalkeeper: player.isGoalkeeper,
+  is_paid: player.isPaid ?? false,
   game_id: player.gameId,
 });
 

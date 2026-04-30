@@ -3,6 +3,11 @@ export type GameStatus = 'configurando' | 'aguardando_sorteio' | 'em_jogo' | 'fi
 
 export interface GameSettings {
   matchTime: number; // minutos
+  pixKey?: string;       // chave pix do admin
+  pixName?: string;      // nome do recebedor
+  pixAmount?: number;    // valor da pelada
+  locationName?: string; // nome do local
+  locationUrl?: string;  // link google maps
 }
 
 export interface TimerState {
@@ -16,6 +21,7 @@ export interface Player {
   name: string;
   isConfirmed: boolean;
   isGoalkeeper: boolean;
+  isPaid: boolean;
   gameId: string;
 }
 
