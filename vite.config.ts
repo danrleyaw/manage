@@ -12,6 +12,16 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    // Força novo hash no bundle a cada build
+    rollupOptions: {
+      output: {
+        entryFileNames: `assets/[name]-[hash]-v2.js`,
+        chunkFileNames: `assets/[name]-[hash]-v2.js`,
+        assetFileNames: `assets/[name]-[hash]-v2.[ext]`,
+      }
+    }
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
