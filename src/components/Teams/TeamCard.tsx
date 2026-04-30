@@ -10,9 +10,11 @@ interface TeamCardProps {
   isMandante?: boolean;
   /** Modo compacto para landscape */
   compact?: boolean;
+  /** Callback quando admin clica num jogador durante a partida */
+  onPlayerClick?: (player: Player) => void;
 }
 
-export const TeamCard: React.FC<TeamCardProps> = ({ title, playerIds, color, allPlayers, isMandante, compact = false }) => {
+export const TeamCard: React.FC<TeamCardProps> = ({ title, playerIds, color, allPlayers, isMandante, compact = false, onPlayerClick }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   if (compact) {
@@ -80,14 +82,21 @@ export const TeamCard: React.FC<TeamCardProps> = ({ title, playerIds, color, all
             playerIds.map((id, i) => {
               const p = allPlayers.find(x => x.id === id);
               return (
-                <div key={`${id}-${i}`} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <div
+                  key={`${id}-${i}`}
+                  onClick={onPlayerClick && p ? (e) => { e.stopPropagation(); onPlayerClick(p); } : undefined}
+                  className={`flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${onPlayerClick ? 'cursor-pointer hover:border-blue-400 dark:hover:border-blue-600' : ''}`}
+                >
                   <div className="flex items-center gap-2">
                     <div className={`w-6 h-6 flex items-center justify-center rounded-md ${p?.isGoalkeeper ? 'bg-orange-600' : 'bg-slate-900 dark:bg-slate-600'} text-white shadow-sm`}>
                       {p?.isGoalkeeper ? <ShieldCheck size={12} /> : <User size={12} />}
                     </div>
                     <span className="font-black text-slate-800 dark:text-white uppercase text-[11px] tracking-tight">{p?.name || 'Vazio'}</span>
                   </div>
-                  {p?.isGoalkeeper && <span className="text-[9px] font-black text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/40 px-2 py-0.5 rounded border border-orange-200 dark:border-orange-800">GK</span>}
+                  <div className="flex items-center gap-1.5">
+                    {p?.isGoalkeeper && <span className="text-[9px] font-black text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/40 px-2 py-0.5 rounded border border-orange-200 dark:border-orange-800">GK</span>}
+                    {onPlayerClick && p && <span className="text-[9px] font-black text-slate-400 dark:text-slate-500">✎</span>}
+                  </div>
                 </div>
               );
             })

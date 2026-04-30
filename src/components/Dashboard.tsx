@@ -17,6 +17,7 @@ import { BrandLogo } from './Layout/BrandLogo';
 import { TeamCard } from './Teams/TeamCard';
 import { LandscapeView } from './LandscapeView';
 import { PaymentList, ArenaSettings, PlayerPaymentCard } from './PaymentPanel';
+import { PlayerManageModal } from './PlayerManageModal';
 
 // ── Hook de tema ──────────────────────────────────────────
 function useTheme() {
@@ -92,6 +93,7 @@ const Dashboard: React.FC = () => {
   const [gameNameInput, setGameNameInput] = useState('');
   const [selectedPosition, setSelectedPosition] = useState<'linha' | 'goleiro'>('linha');
   const [adminTab, setAdminTab] = useState<'roster' | 'payment' | 'settings'>('roster');
+  const [managingPlayer, setManagingPlayer] = useState<{ player: Player; team: 'A' | 'B' } | null>(null);
 
   const isCurrentGameAdmin = useMemo(() => user?.id === currentGame?.adminId, [user?.id, currentGame?.adminId]);
 
@@ -448,6 +450,17 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const deleteGame = async (g: Game, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`Excluir a arena "${g.name}" permanentemente?`)) return;
+    try {
+      await supabase.games.delete(g.id);
+      setAdminGames(prev => prev.filter(x => x.id !== g.id));
+    } catch (err: any) {
+      alert(`Erro ao excluir: ${err.message}`);
+    }
+  };
+
   const togglePaid = async (p: Player) => {
     if (!currentGame) return;
     await supabase.players.upsert({ ...p, isPaid: !p.isPaid });
@@ -459,6 +472,45 @@ const Dashboard: React.FC = () => {
     const newSettings = { ...currentGame.settings, ...updates };
     setCurrentGame({ ...currentGame, settings: newSettings });
     await supabase.games.update(currentGame.id, { settings: newSettings });
+  };
+
+  // Gerenciamento de jogadores nos times durante a partida
+  const handleToggleGKInTeam = async (p: Player) => {
+    await supabase.players.upsert({ ...p, isGoalkeeper: !p.isGoalkeeper });
+    setPlayers(await supabase.players.getByGame(currentGame!.id));
+  };
+
+  const handleSubstituteInTeam = async (outPlayer: Player, inPlayer: Player) => {
+    if (!queue || !currentGame) return;
+    // Substitui no queue_state
+    const newQueue = {
+      ...queue,
+      teamA: queue.teamA.map(id => id === outPlayer.id ? inPlayer.id : id),
+      teamB: queue.teamB.map(id => id === outPlayer.id ? inPlayer.id : id),
+      nextBlock: queue.nextBlock.map(id => id === outPlayer.id ? inPlayer.id : id),
+      reQueue: queue.reQueue.map(id => id === outPlayer.id ? inPlayer.id : id),
+    };
+    // Coloca o jogador que saiu na fila RE
+    if (!newQueue.reQueue.includes(outPlayer.id) &&
+        !newQueue.teamA.includes(outPlayer.id) &&
+        !newQueue.teamB.includes(outPlayer.id)) {
+      newQueue.reQueue = [...newQueue.reQueue, outPlayer.id];
+    }
+    await supabase.queue.update(currentGame.id, newQueue);
+    setQueue(newQueue);
+  };
+
+  const handleRemoveFromTeam = async (p: Player) => {
+    if (!queue || !currentGame) return;
+    const newQueue = {
+      ...queue,
+      teamA: queue.teamA.filter(id => id !== p.id),
+      teamB: queue.teamB.filter(id => id !== p.id),
+      nextBlock: queue.nextBlock.filter(id => id !== p.id),
+      reQueue: queue.reQueue.filter(id => id !== p.id),
+    };
+    await supabase.queue.update(currentGame.id, newQueue);
+    setQueue(newQueue);
   };
 
   // --- LÓGICA DE COMPARTILHAMENTO ---
@@ -633,15 +685,23 @@ const Dashboard: React.FC = () => {
               </div>
             ) : (
               adminGames.map(g => (
-                <button key={g.id} onClick={() => joinGame(g.joinCode)}
-                  className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-2xl border-2 border-slate-200 dark:border-slate-700 transition-all group shadow-sm"
-                >
-                  <div className="text-left">
-                    <p className="font-heading italic text-slate-900 dark:text-white uppercase text-sm tracking-tight mb-1">{g.name}</p>
-                    <span className="text-[10px] font-mono text-blue-700 dark:text-blue-400 font-black tracking-widest bg-blue-100 dark:bg-blue-900/40 px-3 py-0.5 rounded-full">{g.joinCode}</span>
-                  </div>
-                  <ChevronRight size={18} className="text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-all" />
-                </button>
+                <div key={g.id} className="flex items-center gap-2">
+                  <button onClick={() => joinGame(g.joinCode)}
+                    className="flex-1 flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-2xl border-2 border-slate-200 dark:border-slate-700 transition-all group shadow-sm"
+                  >
+                    <div className="text-left">
+                      <p className="font-heading italic text-slate-900 dark:text-white uppercase text-sm tracking-tight mb-1">{g.name}</p>
+                      <span className="text-[10px] font-mono text-blue-700 dark:text-blue-400 font-black tracking-widest bg-blue-100 dark:bg-blue-900/40 px-3 py-0.5 rounded-full">{g.joinCode}</span>
+                    </div>
+                    <ChevronRight size={18} className="text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-all" />
+                  </button>
+                  <button
+                    onClick={(e) => deleteGame(g, e)}
+                    className="p-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 hover:border-red-200 dark:hover:border-red-800 transition-all active:scale-90 shrink-0"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               ))
             )}
           </div>
@@ -873,9 +933,35 @@ const Dashboard: React.FC = () => {
           <div className="space-y-8 pb-10">
             {currentGame && <MatchTimer game={currentGame} isAdmin={true} onUpdate={handleUpdateGame} />}
 
+            {/* Modal de gerenciamento de jogador */}
+            {managingPlayer && (
+              <PlayerManageModal
+                player={managingPlayer.player}
+                team={managingPlayer.team}
+                allPlayers={players}
+                onClose={() => setManagingPlayer(null)}
+                onToggleGK={handleToggleGKInTeam}
+                onSubstitute={handleSubstituteInTeam}
+                onRemove={handleRemoveFromTeam}
+              />
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <TeamCard title="EQUIPE ALPHA" playerIds={queue?.teamA || []} color="border-blue-600" allPlayers={players} isMandante />
-              <TeamCard title="EQUIPE BETA" playerIds={queue?.teamB || []} color="border-orange-600" allPlayers={players} />
+              <TeamCard
+                title="EQUIPE ALPHA"
+                playerIds={queue?.teamA || []}
+                color="border-blue-600"
+                allPlayers={players}
+                isMandante
+                onPlayerClick={isCurrentGameAdmin ? (p) => setManagingPlayer({ player: p, team: 'A' }) : undefined}
+              />
+              <TeamCard
+                title="EQUIPE BETA"
+                playerIds={queue?.teamB || []}
+                color="border-orange-600"
+                allPlayers={players}
+                onPlayerClick={isCurrentGameAdmin ? (p) => setManagingPlayer({ player: p, team: 'B' }) : undefined}
+              />
             </div>
 
             {/* Placar */}
