@@ -1,4 +1,4 @@
-// Fut Manager - Dashboard
+// Fut Manager - Dashboard v2
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Plus, Users, ChevronRight, User,
