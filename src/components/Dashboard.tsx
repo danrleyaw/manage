@@ -382,13 +382,22 @@ const Dashboard: React.FC = () => {
     localStorage.setItem(`player_name_${currentGame.id}`, newPlayerName.toUpperCase());
 
     if (guestPlayer?.isConfirmed) {
-      await supabase.players.delete(guestPlayerId);
+      // Desmarca presença — atualiza is_confirmed para false (anon pode fazer upsert)
+      await supabase.players.upsert({
+        id: guestPlayerId,
+        name: newPlayerName.toUpperCase(),
+        isConfirmed: false,
+        isGoalkeeper: selectedPosition === 'goleiro',
+        isPaid: guestPlayer.isPaid ?? false,
+        gameId: currentGame.id
+      });
     } else {
       await supabase.players.upsert({
         id: guestPlayerId,
         name: newPlayerName.toUpperCase(),
         isConfirmed: true,
         isGoalkeeper: selectedPosition === 'goleiro',
+        isPaid: false,
         gameId: currentGame.id
       });
     }
@@ -404,6 +413,7 @@ const Dashboard: React.FC = () => {
       name: adminAddPlayerName.toUpperCase(),
       isConfirmed: true,
       isGoalkeeper: false,
+      isPaid: false,
       gameId: currentGame.id
     });
     setAdminAddPlayerName('');
