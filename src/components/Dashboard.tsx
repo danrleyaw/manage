@@ -94,6 +94,7 @@ const Dashboard: React.FC = () => {
   const [selectedPosition, setSelectedPosition] = useState<'linha' | 'goleiro'>('linha');
   const [adminTab, setAdminTab] = useState<'roster' | 'payment' | 'settings'>('roster');
   const [managingPlayer, setManagingPlayer] = useState<{ player: Player; team: 'A' | 'B' } | null>(null);
+  const [showInGameSettings, setShowInGameSettings] = useState(false);
 
   const isCurrentGameAdmin = useMemo(() => user?.id === currentGame?.adminId, [user?.id, currentGame?.adminId]);
 
@@ -844,6 +845,15 @@ const Dashboard: React.FC = () => {
                 {view === 'admin' ? 'PLAYER' : 'ADMIN'}
               </button>
             )}
+            {isCurrentGameAdmin && view === 'admin' && (
+              <button
+                onClick={() => setShowInGameSettings(true)}
+                className="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-blue-600 transition-all active:scale-90"
+                title="Configurações"
+              >
+                <Settings size={18} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -944,6 +954,22 @@ const Dashboard: React.FC = () => {
                 onSubstitute={handleSubstituteInTeam}
                 onRemove={handleRemoveFromTeam}
               />
+            )}
+
+            {/* Modal de configurações durante a partida */}
+            {showInGameSettings && (
+              <div className="fixed inset-0 z-[400] flex items-end sm:items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowInGameSettings(false)} />
+                <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border-2 border-slate-100 dark:border-slate-800 animate-in slide-in-from-bottom-6 duration-300 overflow-hidden">
+                  <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-[13px] font-black text-slate-900 dark:text-white uppercase tracking-widest italic">Configurações da Arena</h3>
+                    <button onClick={() => setShowInGameSettings(false)} className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400"><X size={16} /></button>
+                  </div>
+                  <div className="p-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                    <ArenaSettings settings={currentGame.settings} onSave={(updates) => { updateArenaSettings(updates); setShowInGameSettings(false); }} />
+                  </div>
+                </div>
+              </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
