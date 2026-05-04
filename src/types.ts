@@ -2,12 +2,14 @@
 export type GameStatus = 'configurando' | 'aguardando_sorteio' | 'em_jogo' | 'finalizado';
 
 export interface GameSettings {
-  matchTime: number; // minutos
-  pixKey?: string;       // chave pix do admin
-  pixName?: string;      // nome do recebedor
-  pixAmount?: number;    // valor da pelada
-  locationName?: string; // nome do local
-  locationUrl?: string;  // link google maps
+  matchTime: number;       // minutos
+  playersPerTeam: number;  // jogadores por time (padrão: 5)
+  gkPerTeam: number;       // goleiros por time (padrão: 1)
+  pixKey?: string;
+  pixName?: string;
+  pixAmount?: number;
+  locationName?: string;
+  locationUrl?: string;
 }
 
 export interface TimerState {

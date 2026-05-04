@@ -293,7 +293,7 @@ const Dashboard: React.FC = () => {
         joinCode: Math.random().toString(36).substring(2, 7).toUpperCase(),
         status: 'configurando',
         adminId: currentUser.id,
-        settings: { matchTime: 10 },
+        settings: { matchTime: 10, playersPerTeam: 5, gkPerTeam: 1 },
         timerState: { isRunning: false, startTime: null, remainingSeconds: 600 },
         scoreA: 0, scoreB: 0
       };
@@ -340,7 +340,7 @@ const Dashboard: React.FC = () => {
 
   const handleEndMatch = async (winner: 'A' | 'B' | 'Empate') => {
     if (!queue || !currentGame) return;
-    const nextState = TeamLogic.processMatchResult(queue, winner);
+    const nextState = TeamLogic.processMatchResult(queue, winner, currentGame.settings);
     const resetTime = currentGame.settings.matchTime * 60;
     const updates: Partial<Game> = {
       scoreA: 0,
@@ -368,8 +368,9 @@ const Dashboard: React.FC = () => {
 
   const startDraw = async () => {
     if (!currentGame) return;
-    const initial = TeamLogic.initialDraw(players);
-    if (!initial) return alert("Requisitos: 2 Goleiros e 8 Linha Confirmados.");
+    const initial = TeamLogic.initialDraw(players, currentGame.settings);
+    const { minGK, minField } = TeamLogic.getRequirements(currentGame.settings);
+    if (!initial) return alert(`Requisitos: ${minGK} Goleiro(s) e ${minField} Jogadores de Linha Confirmados.`);
     await supabase.queue.update(currentGame.id, initial);
     await supabase.games.update(currentGame.id, { status: 'em_jogo' });
     setQueue(initial);
@@ -481,8 +482,13 @@ const Dashboard: React.FC = () => {
   const updateArenaSettings = async (updates: Partial<Game['settings']>) => {
     if (!currentGame) return;
     const newSettings = { ...currentGame.settings, ...updates };
-    setCurrentGame({ ...currentGame, settings: newSettings });
-    await supabase.games.update(currentGame.id, { settings: newSettings });
+    // Se mudou o tempo, atualiza o timer também (só se não estiver rodando)
+    const gameUpdates: Partial<Game> = { settings: newSettings };
+    if (updates.matchTime && !currentGame.timerState.isRunning) {
+      gameUpdates.timerState = { ...currentGame.timerState, remainingSeconds: updates.matchTime * 60 };
+    }
+    setCurrentGame(prev => prev ? { ...prev, ...gameUpdates } : null);
+    await supabase.games.update(currentGame.id, gameUpdates);
   };
 
   // Gerenciamento de jogadores nos times durante a partida
@@ -1153,37 +1159,26 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Tempo da partida */}
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-slate-100 dark:border-slate-800 shadow-lg space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Clock size={20} className="text-blue-600" />
-                    <span className="text-[11px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-[0.4em] italic">Tempo da Partida</span>
-                  </div>
-                  <div className="flex items-center justify-center gap-8 py-2">
-                    <button onClick={() => updateMatchTime(currentGame.settings.matchTime - 1)} className="w-14 h-14 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-90"><Minus size={24} strokeWidth={3} /></button>
-                    <div className="text-center">
-                      <span className="text-6xl font-heading italic text-slate-900 dark:text-white tabular-nums font-black">{currentGame.settings.matchTime}</span>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-2 italic">MINUTOS</p>
-                    </div>
-                    <button onClick={() => updateMatchTime(currentGame.settings.matchTime + 1)} className="w-14 h-14 flex items-center justify-center rounded-full bg-slate-900 dark:bg-blue-600 text-white hover:bg-blue-700 transition-all active:scale-90 shadow-xl"><Plus size={24} strokeWidth={3} /></button>
-                  </div>
-                </div>
-
                 {/* Roster */}
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-slate-100 dark:border-slate-800 shadow-lg">
-                  <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-                    <h3 className="text-[11px] font-black uppercase text-blue-600 tracking-[0.4em] italic">ROSTER ({confirmedPlayers.length})</h3>
-                    <div className="flex gap-6">
-                      <div className="text-center">
-                        <p className="text-[9px] font-black text-slate-400 uppercase italic mb-0.5">GK</p>
-                        <p className="text-xl font-heading italic text-slate-900 dark:text-white font-black">{confirmedGK.length}<span className="text-slate-300 dark:text-slate-600 text-sm">/2</span></p>
+                  {(() => {
+                    const req = TeamLogic.getRequirements(currentGame.settings);
+                    return (
+                      <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <h3 className="text-[11px] font-black uppercase text-blue-600 tracking-[0.4em] italic">ROSTER ({confirmedPlayers.length})</h3>
+                        <div className="flex gap-6">
+                          <div className="text-center">
+                            <p className="text-[9px] font-black text-slate-400 uppercase italic mb-0.5">GK</p>
+                            <p className="text-xl font-heading italic text-slate-900 dark:text-white font-black">{confirmedGK.length}<span className="text-slate-300 dark:text-slate-600 text-sm">/{req.minGK}</span></p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[9px] font-black text-slate-400 uppercase italic mb-0.5">LINHA</p>
+                            <p className="text-xl font-heading italic text-slate-900 dark:text-white font-black">{confirmedField.length}<span className="text-slate-300 dark:text-slate-600 text-sm">/{req.minField}</span></p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <p className="text-[9px] font-black text-slate-400 uppercase italic mb-0.5">LINHA</p>
-                        <p className="text-xl font-heading italic text-slate-900 dark:text-white font-black">{confirmedField.length}<span className="text-slate-300 dark:text-slate-600 text-sm">/8</span></p>
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
                     {players.map(p => (
@@ -1203,7 +1198,7 @@ const Dashboard: React.FC = () => {
                     ))}
                   </div>
 
-                  {confirmedPlayers.length >= 10 && (
+                  {confirmedPlayers.length >= (TeamLogic.getRequirements(currentGame.settings).minGK + TeamLogic.getRequirements(currentGame.settings).minField) && (
                     <button onClick={startDraw} className="w-full p-5 rounded-2xl font-heading italic text-lg uppercase tracking-[0.2em] bg-slate-900 dark:bg-blue-600 text-white shadow-2xl active:scale-95 transition-all hover:bg-blue-700 border-b-4 border-slate-950 dark:border-blue-800">
                       REALIZAR SORTEIO ELITE
                     </button>

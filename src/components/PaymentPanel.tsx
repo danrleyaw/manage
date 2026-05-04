@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, Clock, Copy, MapPin, ExternalLink, DollarSign, Check } from 'lucide-react';
+import { CheckCircle2, Clock, Copy, MapPin, ExternalLink, DollarSign, Check, Timer } from 'lucide-react';
 import { Player, GameSettings } from '../types';
 
 // ── PAINEL DO ADMIN — Lista de pagamentos ─────────────────
@@ -99,108 +99,124 @@ interface ArenaSettingsProps {
 }
 
 export const ArenaSettings: React.FC<ArenaSettingsProps> = ({ settings, onSave }) => {
-  const [pixKey, setPixKey] = useState(settings.pixKey || '');
-  const [pixName, setPixName] = useState(settings.pixName || '');
-  const [pixAmount, setPixAmount] = useState(settings.pixAmount?.toString() || '');
-  const [locationName, setLocationName] = useState(settings.locationName || '');
-  const [locationUrl, setLocationUrl] = useState(settings.locationUrl || '');
-  const [saved, setSaved] = useState(false);
+  const [matchTime,      setMatchTime]      = useState(settings.matchTime ?? 10);
+  const [playersPerTeam, setPlayersPerTeam] = useState(settings.playersPerTeam ?? 5);
+  const [gkPerTeam,      setGkPerTeam]      = useState(settings.gkPerTeam ?? 1);
+  const [pixKey,         setPixKey]         = useState(settings.pixKey || '');
+  const [pixName,        setPixName]        = useState(settings.pixName || '');
+  const [pixAmount,      setPixAmount]      = useState(settings.pixAmount?.toString() || '');
+  const [locationName,   setLocationName]   = useState(settings.locationName || '');
+  const [locationUrl,    setLocationUrl]    = useState(settings.locationUrl || '');
+  const [saved,          setSaved]          = useState(false);
+
+  // Garante que gkPerTeam nunca seja >= playersPerTeam
+  const safeGk = Math.min(gkPerTeam, playersPerTeam - 1);
+  const fieldPerTeam = playersPerTeam - safeGk;
+  const minGK    = safeGk * 2;
+  const minField = fieldPerTeam * 2;
 
   const handleSave = () => {
     onSave({
-      pixKey: pixKey.trim(),
-      pixName: pixName.trim(),
-      pixAmount: pixAmount ? parseFloat(pixAmount) : undefined,
-      locationName: locationName.trim(),
-      locationUrl: locationUrl.trim(),
+      matchTime,
+      playersPerTeam,
+      gkPerTeam: safeGk,
+      pixKey:        pixKey.trim(),
+      pixName:       pixName.trim(),
+      pixAmount:     pixAmount ? parseFloat(pixAmount) : undefined,
+      locationName:  locationName.trim(),
+      locationUrl:   locationUrl.trim(),
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const NumControl = ({
+    label, value, onChange, min = 1, max = 20
+  }: { label: string; value: number; onChange: (v: number) => void; min?: number; max?: number }) => (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-[12px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">{label}</span>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(min, value - 1))}
+          className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-white font-black text-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-90"
+        >−</button>
+        <span className="text-xl font-heading italic font-black text-slate-900 dark:text-white w-8 text-center tabular-nums">{value}</span>
+        <button
+          type="button"
+          onClick={() => onChange(Math.min(max, value + 1))}
+          className="w-9 h-9 rounded-xl bg-slate-900 dark:bg-blue-600 text-white font-black text-lg hover:bg-blue-700 transition-all active:scale-90 shadow-md"
+        >+</button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-5">
-      {/* PIX */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border-2 border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <DollarSign size={18} className="text-emerald-600 dark:text-emerald-400" />
-          <span className="text-[11px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-[0.3em] italic">Dados do Pix</span>
+      {/* PARTIDA */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border-2 border-slate-100 dark:border-slate-800 shadow-sm space-y-1">
+        <div className="flex items-center gap-2 mb-3">
+          <Timer size={16} className="text-blue-600 dark:text-blue-400" />
+          <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.3em] italic">Partida</span>
         </div>
+        <NumControl label="Tempo (min)" value={matchTime} onChange={setMatchTime} min={1} max={90} />
+        <div className="h-px bg-slate-100 dark:bg-slate-800" />
+        <NumControl label="Jogadores por time" value={playersPerTeam} onChange={setPlayersPerTeam} min={2} max={11} />
+        <div className="h-px bg-slate-100 dark:bg-slate-800" />
+        <NumControl label="Goleiros por time" value={safeGk} onChange={setGkPerTeam} min={1} max={Math.max(1, playersPerTeam - 1)} />
+        {/* Resumo */}
+        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800">
+          <p className="text-[10px] font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest text-center">
+            Sorteio: mínimo {minGK} GK + {minField} linha = {minGK + minField} confirmados
+          </p>
+        </div>
+      </div>
 
-        <div className="space-y-3">
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Chave Pix</label>
-            <input
-              type="text"
-              value={pixKey}
-              onChange={e => setPixKey(e.target.value)}
-              placeholder="CPF, email, telefone ou chave aleatória"
-              className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 p-3.5 rounded-2xl text-sm font-bold focus:border-emerald-500 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600"
-            />
+      {/* PIX */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border-2 border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="flex items-center gap-2 mb-1">
+          <DollarSign size={16} className="text-emerald-600 dark:text-emerald-400" />
+          <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.3em] italic">Pix</span>
+        </div>
+        {[
+          { label: 'Chave Pix', value: pixKey, set: setPixKey, placeholder: 'CPF, email, telefone...' },
+          { label: 'Nome do recebedor', value: pixName, set: setPixName, placeholder: 'Seu nome' },
+        ].map(f => (
+          <div key={f.label}>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">{f.label}</label>
+            <input type="text" value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.placeholder}
+              className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 p-3 rounded-2xl text-sm font-bold focus:border-emerald-500 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600" />
           </div>
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Nome do recebedor</label>
-            <input
-              type="text"
-              value={pixName}
-              onChange={e => setPixName(e.target.value)}
-              placeholder="Seu nome"
-              className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 p-3.5 rounded-2xl text-sm font-bold focus:border-emerald-500 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Valor (R$)</label>
-            <input
-              type="number"
-              value={pixAmount}
-              onChange={e => setPixAmount(e.target.value)}
-              placeholder="Ex: 25.00"
-              min="0"
-              step="0.50"
-              className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 p-3.5 rounded-2xl text-sm font-bold focus:border-emerald-500 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600"
-            />
-          </div>
+        ))}
+        <div>
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Valor (R$)</label>
+          <input type="number" value={pixAmount} onChange={e => setPixAmount(e.target.value)} placeholder="Ex: 25.00" min="0" step="0.50"
+            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 p-3 rounded-2xl text-sm font-bold focus:border-emerald-500 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600" />
         </div>
       </div>
 
       {/* LOCAL */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border-2 border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <MapPin size={18} className="text-blue-600 dark:text-blue-400" />
-          <span className="text-[11px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-[0.3em] italic">Local do Jogo</span>
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border-2 border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="flex items-center gap-2 mb-1">
+          <MapPin size={16} className="text-blue-600 dark:text-blue-400" />
+          <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.3em] italic">Local</span>
         </div>
-
-        <div className="space-y-3">
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Nome do local</label>
-            <input
-              type="text"
-              value={locationName}
-              onChange={e => setLocationName(e.target.value)}
-              placeholder="Ex: Arena Elite - Quadra 3"
-              className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 p-3.5 rounded-2xl text-sm font-bold focus:border-blue-500 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600"
-            />
+        {[
+          { label: 'Nome do local', value: locationName, set: setLocationName, placeholder: 'Ex: Arena Elite - Quadra 3', type: 'text' },
+          { label: 'Link Google Maps', value: locationUrl, set: setLocationUrl, placeholder: 'https://maps.google.com/...', type: 'url' },
+        ].map(f => (
+          <div key={f.label}>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">{f.label}</label>
+            <input type={f.type} value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.placeholder}
+              className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 p-3 rounded-2xl text-sm font-bold focus:border-blue-500 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600" />
           </div>
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Link Google Maps</label>
-            <input
-              type="url"
-              value={locationUrl}
-              onChange={e => setLocationUrl(e.target.value)}
-              placeholder="https://maps.google.com/..."
-              className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 p-3.5 rounded-2xl text-sm font-bold focus:border-blue-500 outline-none transition-all text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600"
-            />
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Botão salvar */}
-      <button
-        onClick={handleSave}
+      {/* Salvar */}
+      <button onClick={handleSave}
         className={`w-full py-4 rounded-2xl font-heading italic text-sm uppercase tracking-widest text-white shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 ${
-          saved
-            ? 'bg-emerald-500 border-b-4 border-emerald-700'
-            : 'bg-slate-900 dark:bg-blue-600 hover:bg-blue-600 dark:hover:bg-blue-500 border-b-4 border-slate-950 dark:border-blue-800'
+          saved ? 'bg-emerald-500 border-b-4 border-emerald-700' : 'bg-slate-900 dark:bg-blue-600 hover:bg-blue-600 dark:hover:bg-blue-500 border-b-4 border-slate-950 dark:border-blue-800'
         }`}
       >
         {saved ? <><Check size={18} /> SALVO!</> : 'SALVAR CONFIGURAÇÕES'}
