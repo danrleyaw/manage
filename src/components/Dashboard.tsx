@@ -17,7 +17,7 @@ import { BrandLogo } from './Layout/BrandLogo';
 import { TeamCard } from './Teams/TeamCard';
 import { LandscapeView } from './LandscapeView';
 import { PaymentList, ArenaSettings, PlayerPaymentCard } from './PaymentPanel';
-import { PlayerManageModal } from './PlayerManageModal';
+import { PlayerManageModal, AddToTeamModal } from './PlayerManageModal';
 
 // ── Hook de tema ──────────────────────────────────────────
 function useTheme() {
@@ -95,6 +95,7 @@ const Dashboard: React.FC = () => {
   const [adminTab, setAdminTab] = useState<'roster' | 'payment' | 'settings'>('roster');
   const [managingPlayer, setManagingPlayer] = useState<{ player: Player; team: 'A' | 'B' } | null>(null);
   const [showInGameSettings, setShowInGameSettings] = useState(false);
+  const [addingToTeam, setAddingToTeam] = useState<'A' | 'B' | null>(null);
 
   const isCurrentGameAdmin = useMemo(() => user?.id === currentGame?.adminId, [user?.id, currentGame?.adminId]);
 
@@ -530,6 +531,19 @@ const Dashboard: React.FC = () => {
     setQueue(newQueue);
   };
 
+  const handleAddToTeam = async (player: Player, team: 'A' | 'B') => {
+    if (!queue || !currentGame) return;
+    const newQueue = {
+      ...queue,
+      teamA: team === 'A' ? [...queue.teamA, player.id] : queue.teamA.filter(id => id !== player.id),
+      teamB: team === 'B' ? [...queue.teamB, player.id] : queue.teamB.filter(id => id !== player.id),
+      nextBlock: queue.nextBlock.filter(id => id !== player.id),
+      reQueue: queue.reQueue.filter(id => id !== player.id),
+    };
+    await supabase.queue.update(currentGame.id, newQueue);
+    setQueue(newQueue);
+  };
+
   // --- LÓGICA DE COMPARTILHAMENTO ---
   const shareLink = useMemo(() => {
     return `${window.location.origin}${window.location.pathname}?code=${currentGame?.joinCode}`;
@@ -888,6 +902,54 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* ── MODAIS GLOBAIS DO ADMIN (disponíveis em qualquer status) ── */}
+        {isCurrentGameAdmin && currentGame && (
+          <>
+            {/* Modal de configurações */}
+            {showInGameSettings && (
+              <div className="fixed inset-0 z-[400] flex items-end sm:items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowInGameSettings(false)} />
+                <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border-2 border-slate-100 dark:border-slate-800 animate-in slide-in-from-bottom-6 duration-300 overflow-hidden">
+                  <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-[13px] font-black text-slate-900 dark:text-white uppercase tracking-widest italic">⚙️ Configurações da Arena</h3>
+                    <button onClick={() => setShowInGameSettings(false)} className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400"><X size={16} /></button>
+                  </div>
+                  <div className="p-5 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                    <ArenaSettings
+                      settings={currentGame.settings}
+                      onSave={(updates) => { updateArenaSettings(updates); setShowInGameSettings(false); }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal de gerenciamento de jogador */}
+            {managingPlayer && (
+              <PlayerManageModal
+                player={managingPlayer.player}
+                team={managingPlayer.team}
+                allPlayers={players}
+                onClose={() => setManagingPlayer(null)}
+                onToggleGK={handleToggleGKInTeam}
+                onSubstitute={handleSubstituteInTeam}
+                onRemove={handleRemoveFromTeam}
+              />
+            )}
+
+            {/* Modal de adicionar jogador ao time */}
+            {addingToTeam && queue && (
+              <AddToTeamModal
+                team={addingToTeam}
+                allPlayers={players}
+                currentTeamIds={addingToTeam === 'A' ? queue.teamA : queue.teamB}
+                onClose={() => setAddingToTeam(null)}
+                onAdd={(p) => handleAddToTeam(p, addingToTeam)}
+              />
+            )}
+          </>
+        )}
+
         {/* VISÃO DO CONVIDADO (PLAYER) */}
         {view === 'player' && (
           <div className="flex flex-col items-center py-8 space-y-10 animate-in slide-in-from-bottom-6 duration-500">
@@ -959,51 +1021,44 @@ const Dashboard: React.FC = () => {
           <div className="space-y-8 pb-10">
             {currentGame && <MatchTimer game={currentGame} isAdmin={true} onUpdate={handleUpdateGame} />}
 
-            {/* Modal de gerenciamento de jogador */}
-            {managingPlayer && (
-              <PlayerManageModal
-                player={managingPlayer.player}
-                team={managingPlayer.team}
-                allPlayers={players}
-                onClose={() => setManagingPlayer(null)}
-                onToggleGK={handleToggleGKInTeam}
-                onSubstitute={handleSubstituteInTeam}
-                onRemove={handleRemoveFromTeam}
-              />
-            )}
-
-            {/* Modal de configurações durante a partida */}
-            {showInGameSettings && (
-              <div className="fixed inset-0 z-[400] flex items-end sm:items-center justify-center p-4">
-                <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowInGameSettings(false)} />
-                <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border-2 border-slate-100 dark:border-slate-800 animate-in slide-in-from-bottom-6 duration-300 overflow-hidden">
-                  <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
-                    <h3 className="text-[13px] font-black text-slate-900 dark:text-white uppercase tracking-widest italic">Configurações da Arena</h3>
-                    <button onClick={() => setShowInGameSettings(false)} className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400"><X size={16} /></button>
-                  </div>
-                  <div className="p-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                    <ArenaSettings settings={currentGame.settings} onSave={(updates) => { updateArenaSettings(updates); setShowInGameSettings(false); }} />
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <TeamCard
-                title="EQUIPE ALPHA"
-                playerIds={queue?.teamA || []}
-                color="border-blue-600"
-                allPlayers={players}
-                isMandante
-                onPlayerClick={isCurrentGameAdmin ? (p) => setManagingPlayer({ player: p, team: 'A' }) : undefined}
-              />
-              <TeamCard
-                title="EQUIPE BETA"
-                playerIds={queue?.teamB || []}
-                color="border-orange-600"
-                allPlayers={players}
-                onPlayerClick={isCurrentGameAdmin ? (p) => setManagingPlayer({ player: p, team: 'B' }) : undefined}
-              />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest italic">EQUIPE ALPHA</span>
+                  {isCurrentGameAdmin && (
+                    <button onClick={() => setAddingToTeam('A')}
+                      className="flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-[10px] font-black uppercase tracking-wider border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all active:scale-95">
+                      <Plus size={12} strokeWidth={3} /> ADD
+                    </button>
+                  )}
+                </div>
+                <TeamCard
+                  title="EQUIPE ALPHA"
+                  playerIds={queue?.teamA || []}
+                  color="border-blue-600"
+                  allPlayers={players}
+                  isMandante
+                  onPlayerClick={isCurrentGameAdmin ? (p) => setManagingPlayer({ player: p, team: 'A' }) : undefined}
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest italic">EQUIPE BETA</span>
+                  {isCurrentGameAdmin && (
+                    <button onClick={() => setAddingToTeam('B')}
+                      className="flex items-center gap-1 px-3 py-1 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/50 transition-all active:scale-95">
+                      <Plus size={12} strokeWidth={3} /> ADD
+                    </button>
+                  )}
+                </div>
+                <TeamCard
+                  title="EQUIPE BETA"
+                  playerIds={queue?.teamB || []}
+                  color="border-orange-600"
+                  allPlayers={players}
+                  onPlayerClick={isCurrentGameAdmin ? (p) => setManagingPlayer({ player: p, team: 'B' }) : undefined}
+                />
+              </div>
             </div>
 
             {/* Placar */}
