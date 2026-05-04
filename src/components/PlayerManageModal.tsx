@@ -2,9 +2,19 @@ import React, { useState } from 'react';
 import { X, Shield, User, ArrowLeftRight, Trash2, ShieldCheck, UserPlus } from 'lucide-react';
 import { Player } from '../types';
 
+type TeamSlot = 'A' | 'B' | 'next' | 're';
+
+const TEAM_META: Record<TeamSlot, { label: string; sublabel: string; color: string; bg: string }> = {
+  A:    { label: 'EQUIPE ALPHA',   sublabel: 'Time A',              color: 'text-blue-600 dark:text-blue-400',     bg: 'bg-blue-600' },
+  B:    { label: 'EQUIPE BETA',    sublabel: 'Time B',              color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-600' },
+  next: { label: 'NEXT 4 LINEUP', sublabel: 'Próximo time',        color: 'text-blue-400',                        bg: 'bg-slate-700' },
+  re:   { label: 'FILA RE',        sublabel: 'Fila de espera',      color: 'text-slate-400',                       bg: 'bg-slate-600' },
+};
+
+// ── Modal de gerenciamento de jogador ─────────────────────
 interface PlayerManageModalProps {
   player: Player;
-  team: 'A' | 'B';
+  team: TeamSlot;
   allPlayers: Player[];
   onClose: () => void;
   onToggleGK: (p: Player) => void;
@@ -12,17 +22,12 @@ interface PlayerManageModalProps {
   onRemove: (p: Player) => void;
 }
 
-type SubView = 'actions' | 'substitute';
-
 export const PlayerManageModal: React.FC<PlayerManageModalProps> = ({
   player, team, allPlayers, onClose, onToggleGK, onSubstitute, onRemove
 }) => {
-  const [subView, setSubView] = useState<SubView>('actions');
-
+  const [showSubList, setShowSubList] = useState(false);
   const available = allPlayers.filter(p => p.isConfirmed && p.id !== player.id);
-
-  const teamColor = team === 'A' ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400';
-  const teamBg    = team === 'A' ? 'bg-blue-600' : 'bg-orange-600';
+  const meta = TEAM_META[team];
 
   return (
     <div className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center p-4">
@@ -32,18 +37,16 @@ export const PlayerManageModal: React.FC<PlayerManageModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-3">
-            {subView !== 'actions' && (
-              <button onClick={() => setSubView('actions')} className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 mr-1">
+            {showSubList && (
+              <button onClick={() => setShowSubList(false)} className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 mr-1">
                 <X size={14} />
               </button>
             )}
-            <div className={`w-10 h-10 rounded-xl ${teamBg} flex items-center justify-center text-white`}>
+            <div className={`w-10 h-10 rounded-xl ${meta.bg} flex items-center justify-center text-white`}>
               {player.isGoalkeeper ? <ShieldCheck size={18} /> : <User size={18} />}
             </div>
             <div>
-              <p className={`text-[10px] font-black uppercase tracking-widest ${teamColor}`}>
-                EQUIPE {team === 'A' ? 'ALPHA' : 'BETA'}
-              </p>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${meta.color}`}>{meta.label}</p>
               <h3 className="text-base font-heading italic font-black text-slate-900 dark:text-white uppercase tracking-tight">
                 {player.name}
               </h3>
@@ -54,8 +57,8 @@ export const PlayerManageModal: React.FC<PlayerManageModalProps> = ({
           </button>
         </div>
 
-        {/* ── Ações principais ── */}
-        {subView === 'actions' && (
+        {/* Ações */}
+        {!showSubList ? (
           <div className="p-5 space-y-3">
             <button onClick={() => { onToggleGK(player); onClose(); }}
               className="w-full flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-orange-400 dark:hover:border-orange-600 transition-all active:scale-[0.98] group">
@@ -72,7 +75,7 @@ export const PlayerManageModal: React.FC<PlayerManageModalProps> = ({
               </div>
             </button>
 
-            <button onClick={() => setSubView('substitute')}
+            <button onClick={() => setShowSubList(true)}
               className="w-full flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-600 transition-all active:scale-[0.98] group">
               <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
                 <ArrowLeftRight size={18} />
@@ -89,15 +92,12 @@ export const PlayerManageModal: React.FC<PlayerManageModalProps> = ({
                 <Trash2 size={18} />
               </div>
               <div className="text-left">
-                <p className="text-[13px] font-black text-red-700 dark:text-red-400 uppercase">Remover do Time</p>
-                <p className="text-[10px] text-red-400 font-black uppercase tracking-wider">Remove da partida atual</p>
+                <p className="text-[13px] font-black text-red-700 dark:text-red-400 uppercase">Remover</p>
+                <p className="text-[10px] text-red-400 font-black uppercase tracking-wider">Remove desta posição</p>
               </div>
             </button>
           </div>
-        )}
-
-        {/* ── Lista de substituição ── */}
-        {subView === 'substitute' && (
+        ) : (
           <div className="p-5 space-y-3">
             <p className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">
               Quem entra no lugar de <span className="text-slate-900 dark:text-white">{player.name}</span>?
@@ -127,9 +127,9 @@ export const PlayerManageModal: React.FC<PlayerManageModalProps> = ({
   );
 };
 
-// ── Modal para ADICIONAR jogador a um time ────────────────
+// ── Modal para ADICIONAR jogador a uma posição ────────────
 interface AddToTeamModalProps {
-  team: 'A' | 'B';
+  team: TeamSlot;
   allPlayers: Player[];
   currentTeamIds: string[];
   onClose: () => void;
@@ -139,10 +139,8 @@ interface AddToTeamModalProps {
 export const AddToTeamModal: React.FC<AddToTeamModalProps> = ({
   team, allPlayers, currentTeamIds, onClose, onAdd
 }) => {
-  // Jogadores confirmados que não estão no time
   const available = allPlayers.filter(p => p.isConfirmed && !currentTeamIds.includes(p.id));
-  const teamColor = team === 'A' ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400';
-  const teamBg    = team === 'A' ? 'bg-blue-600' : 'bg-orange-600';
+  const meta = TEAM_META[team];
 
   return (
     <div className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center p-4">
@@ -151,13 +149,11 @@ export const AddToTeamModal: React.FC<AddToTeamModalProps> = ({
 
         <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl ${teamBg} flex items-center justify-center text-white`}>
+            <div className={`w-10 h-10 rounded-xl ${meta.bg} flex items-center justify-center text-white`}>
               <UserPlus size={18} />
             </div>
             <div>
-              <p className={`text-[10px] font-black uppercase tracking-widest ${teamColor}`}>
-                EQUIPE {team === 'A' ? 'ALPHA' : 'BETA'}
-              </p>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${meta.color}`}>{meta.label}</p>
               <h3 className="text-base font-heading italic font-black text-slate-900 dark:text-white uppercase">
                 Adicionar Jogador
               </h3>
@@ -172,7 +168,7 @@ export const AddToTeamModal: React.FC<AddToTeamModalProps> = ({
           {available.length === 0 ? (
             <div className="py-8 text-center">
               <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest italic">
-                Nenhum jogador disponível para adicionar
+                Nenhum jogador disponível
               </p>
             </div>
           ) : (

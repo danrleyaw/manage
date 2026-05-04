@@ -93,9 +93,9 @@ const Dashboard: React.FC = () => {
   const [gameNameInput, setGameNameInput] = useState('');
   const [selectedPosition, setSelectedPosition] = useState<'linha' | 'goleiro'>('linha');
   const [adminTab, setAdminTab] = useState<'roster' | 'payment' | 'settings'>('roster');
-  const [managingPlayer, setManagingPlayer] = useState<{ player: Player; team: 'A' | 'B' } | null>(null);
+  const [managingPlayer, setManagingPlayer] = useState<{ player: Player; team: 'A' | 'B' | 'next' | 're' } | null>(null);
   const [showInGameSettings, setShowInGameSettings] = useState(false);
-  const [addingToTeam, setAddingToTeam] = useState<'A' | 'B' | null>(null);
+  const [addingToTeam, setAddingToTeam] = useState<'A' | 'B' | 'next' | 're' | null>(null);
 
   const isCurrentGameAdmin = useMemo(() => user?.id === currentGame?.adminId, [user?.id, currentGame?.adminId]);
 
@@ -500,18 +500,20 @@ const Dashboard: React.FC = () => {
 
   const handleSubstituteInTeam = async (outPlayer: Player, inPlayer: Player) => {
     if (!queue || !currentGame) return;
-    // Substitui no queue_state
+    // Substitui em qualquer lista onde o jogador estiver
     const newQueue = {
       ...queue,
-      teamA: queue.teamA.map(id => id === outPlayer.id ? inPlayer.id : id),
-      teamB: queue.teamB.map(id => id === outPlayer.id ? inPlayer.id : id),
+      teamA:     queue.teamA.map(id => id === outPlayer.id ? inPlayer.id : id),
+      teamB:     queue.teamB.map(id => id === outPlayer.id ? inPlayer.id : id),
       nextBlock: queue.nextBlock.map(id => id === outPlayer.id ? inPlayer.id : id),
-      reQueue: queue.reQueue.map(id => id === outPlayer.id ? inPlayer.id : id),
+      reQueue:   queue.reQueue.map(id => id === outPlayer.id ? inPlayer.id : id),
     };
-    // Coloca o jogador que saiu na fila RE
-    if (!newQueue.reQueue.includes(outPlayer.id) &&
-        !newQueue.teamA.includes(outPlayer.id) &&
-        !newQueue.teamB.includes(outPlayer.id)) {
+    // Coloca o jogador que saiu na fila RE se não estiver em nenhuma lista
+    const isInAnyList = [
+      ...newQueue.teamA, ...newQueue.teamB,
+      ...newQueue.nextBlock, ...newQueue.reQueue
+    ].includes(outPlayer.id);
+    if (!isInAnyList) {
       newQueue.reQueue = [...newQueue.reQueue, outPlayer.id];
     }
     await supabase.queue.update(currentGame.id, newQueue);
@@ -522,23 +524,23 @@ const Dashboard: React.FC = () => {
     if (!queue || !currentGame) return;
     const newQueue = {
       ...queue,
-      teamA: queue.teamA.filter(id => id !== p.id),
-      teamB: queue.teamB.filter(id => id !== p.id),
+      teamA:     queue.teamA.filter(id => id !== p.id),
+      teamB:     queue.teamB.filter(id => id !== p.id),
       nextBlock: queue.nextBlock.filter(id => id !== p.id),
-      reQueue: queue.reQueue.filter(id => id !== p.id),
+      reQueue:   queue.reQueue.filter(id => id !== p.id),
     };
     await supabase.queue.update(currentGame.id, newQueue);
     setQueue(newQueue);
   };
 
-  const handleAddToTeam = async (player: Player, team: 'A' | 'B') => {
+  const handleAddToTeam = async (player: Player, team: 'A' | 'B' | 'next' | 're') => {
     if (!queue || !currentGame) return;
     const newQueue = {
       ...queue,
-      teamA: team === 'A' ? [...queue.teamA, player.id] : queue.teamA.filter(id => id !== player.id),
-      teamB: team === 'B' ? [...queue.teamB, player.id] : queue.teamB.filter(id => id !== player.id),
-      nextBlock: queue.nextBlock.filter(id => id !== player.id),
-      reQueue: queue.reQueue.filter(id => id !== player.id),
+      teamA:     team === 'A'    ? [...queue.teamA, player.id]     : queue.teamA.filter(id => id !== player.id),
+      teamB:     team === 'B'    ? [...queue.teamB, player.id]     : queue.teamB.filter(id => id !== player.id),
+      nextBlock: team === 'next' ? [...queue.nextBlock, player.id] : queue.nextBlock.filter(id => id !== player.id),
+      reQueue:   team === 're'   ? [...queue.reQueue, player.id]   : queue.reQueue.filter(id => id !== player.id),
     };
     await supabase.queue.update(currentGame.id, newQueue);
     setQueue(newQueue);
@@ -942,7 +944,12 @@ const Dashboard: React.FC = () => {
               <AddToTeamModal
                 team={addingToTeam}
                 allPlayers={players}
-                currentTeamIds={addingToTeam === 'A' ? queue.teamA : queue.teamB}
+                currentTeamIds={
+                  addingToTeam === 'A' ? queue.teamA :
+                  addingToTeam === 'B' ? queue.teamB :
+                  addingToTeam === 'next' ? queue.nextBlock :
+                  queue.reQueue
+                }
                 onClose={() => setAddingToTeam(null)}
                 onAdd={(p) => handleAddToTeam(p, addingToTeam)}
               />
@@ -1084,31 +1091,53 @@ const Dashboard: React.FC = () => {
 
             {/* Next 4 */}
             <div className="bg-slate-900 dark:bg-slate-800 rounded-3xl p-6 border-2 border-slate-800 dark:border-slate-700 shadow-xl">
-              <div className="flex items-center gap-3 mb-5">
-                <Sparkles size={18} className="text-blue-400" />
-                <div>
-                  <span className="text-[11px] font-black uppercase text-slate-400 tracking-[0.4em] italic">Next 4 Lineup</span>
-                  <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest">TIME C - PRÓXIMO COMBATE</p>
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-3">
+                  <Sparkles size={18} className="text-blue-400" />
+                  <div>
+                    <span className="text-[11px] font-black uppercase text-slate-400 tracking-[0.4em] italic">Next 4 Lineup</span>
+                    <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest">TIME C - PRÓXIMO COMBATE</p>
+                  </div>
                 </div>
+                {isCurrentGameAdmin && (
+                  <button onClick={() => setAddingToTeam('next' as any)}
+                    className="flex items-center gap-1 px-3 py-1 bg-blue-900/40 text-blue-400 rounded-full text-[10px] font-black uppercase tracking-wider border border-blue-800 hover:bg-blue-900/60 transition-all active:scale-95">
+                    <Plus size={12} strokeWidth={3} /> ADD
+                  </button>
+                )}
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {(queue?.nextBlock || []).map((id, i) => (
-                  <div key={i} className="bg-white/5 p-3 rounded-2xl text-center border border-white/10">
-                    <span className="text-[10px] font-black text-blue-400 block mb-1">#{i + 1}</span>
-                    <span className="text-[12px] font-heading italic text-white uppercase truncate block font-black">{players.find(p => p.id === id)?.name || '?'}</span>
-                  </div>
-                ))}
+                {(queue?.nextBlock || []).map((id, i) => {
+                  const p = players.find(x => x.id === id);
+                  return (
+                    <div key={i}
+                      onClick={isCurrentGameAdmin && p ? () => setManagingPlayer({ player: p, team: 'next' as any }) : undefined}
+                      className={`bg-white/5 p-3 rounded-2xl text-center border border-white/10 transition-all ${isCurrentGameAdmin ? 'cursor-pointer hover:bg-white/10 hover:border-blue-500/50' : ''}`}>
+                      <span className="text-[10px] font-black text-blue-400 block mb-1">#{i + 1}</span>
+                      <span className="text-[12px] font-heading italic text-white uppercase truncate block font-black">{p?.name || '?'}</span>
+                      {isCurrentGameAdmin && <span className="text-[8px] text-slate-500 mt-1 block">toque p/ editar</span>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
             {/* Fila RE */}
             <div className="space-y-4">
-              <div className="flex items-center gap-3 px-1">
-                <Layers size={20} className="text-slate-700 dark:text-slate-400" />
-                <div>
-                  <span className="text-[12px] font-black uppercase text-slate-900 dark:text-white tracking-[0.3em] italic">Fila de Espera (RE)</span>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">ROSTER EM ESPERA</p>
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-3">
+                  <Layers size={20} className="text-slate-700 dark:text-slate-400" />
+                  <div>
+                    <span className="text-[12px] font-black uppercase text-slate-900 dark:text-white tracking-[0.3em] italic">Fila de Espera (RE)</span>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">ROSTER EM ESPERA</p>
+                  </div>
                 </div>
+                {isCurrentGameAdmin && (
+                  <button onClick={() => setAddingToTeam('re' as any)}
+                    className="flex items-center gap-1 px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full text-[10px] font-black uppercase tracking-wider border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-95">
+                    <Plus size={12} strokeWidth={3} /> ADD
+                  </button>
+                )}
               </div>
               <div className="space-y-3">
                 {groupedReQueue.length > 0 ? groupedReQueue.map((teamChunk, teamIdx) => {
@@ -1130,11 +1159,14 @@ const Dashboard: React.FC = () => {
                         {teamChunk.map((id, i) => {
                           const p = players.find(x => x.id === id);
                           return (
-                            <div key={i} className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <div key={i}
+                              onClick={isCurrentGameAdmin && p ? () => setManagingPlayer({ player: p, team: 're' as any }) : undefined}
+                              className={`flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-all ${isCurrentGameAdmin ? 'cursor-pointer hover:border-blue-400 dark:hover:border-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700' : ''}`}>
                               <div className={`w-8 h-8 flex items-center justify-center rounded-lg ${p?.isGoalkeeper ? 'bg-orange-600' : 'bg-slate-900 dark:bg-slate-600'} text-white`}>
                                 {p?.isGoalkeeper ? <Shield size={14} /> : <User size={14} />}
                               </div>
                               <span className="text-[12px] font-black text-slate-900 dark:text-white uppercase truncate">{p?.name || 'Vazio'}</span>
+                              {isCurrentGameAdmin && <span className="ml-auto text-[8px] text-slate-400">✎</span>}
                             </div>
                           );
                         })}
